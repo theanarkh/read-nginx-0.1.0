@@ -83,6 +83,7 @@ ngx_int_t ngx_set_inherited_sockets(ngx_cycle_t *cycle)
             ngx_log_error(NGX_LOG_CRIT, cycle->log, ngx_socket_errno,
                           "getsockname() of the inherited "
                           "socket #%d failed", ls[i].fd);
+            // 获取出错则忽略该socket
             ls[i].ignore = 1;
             continue;
         }

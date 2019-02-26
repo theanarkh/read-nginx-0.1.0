@@ -23,7 +23,7 @@ ngx_buf_t *ngx_create_temp_buf(ngx_pool_t *pool, size_t size)
     b->pos = b->start;
     b->last = b->start;
     b->end = b->last + size;
-    // 标记未临时buf
+    // 标记为临时buf
     b->temporary = 1;
 
     /*

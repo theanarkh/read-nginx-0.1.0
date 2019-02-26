@@ -51,20 +51,22 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     ngx_core_module_t  *module;
 
     log = old_cycle->log;
-    // 默认创建16kb的池子
+    // 开辟一个新的内存池子，默认创建16kb的池子
     if (!(pool = ngx_create_pool(16 * 1024, log))) {
         return NULL;
     }
     // 多余赋值
     pool->log = log;
-
+    // 创建一个新的cycle
     if (!(cycle = ngx_pcalloc(pool, sizeof(ngx_cycle_t)))) {
         ngx_destroy_pool(pool);
         return NULL;
     }
     cycle->pool = pool;
     cycle->log = log;
+    // 保存老的cycle
     cycle->old_cycle = old_cycle;
+    // 默认路径或者用户配置的路径
     cycle->conf_file = old_cycle->conf_file;
     cycle->root.len = sizeof(NGX_PREFIX) - 1;
     cycle->root.data = (u_char *) NGX_PREFIX;
@@ -80,7 +82,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->pathes.nalloc = n;
     cycle->pathes.pool = pool;
 
-    // nelts > 0说明有已经打开的文件
+    // nelts > 0说明有已经打开的文件，累积分配的元素个数
     if (old_cycle->open_files.part.nelts) {
         // 保存第一个节点已经分配的块数
         n = old_cycle->open_files.part.nelts;
@@ -100,12 +102,12 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
-    // 
+    // 创建一个ngx_log_t结构体,管理错误输出的log
     if (!(cycle->new_log = ngx_log_create_errlog(cycle, NULL))) {
         ngx_destroy_pool(pool);
         return NULL;
     }
-
+    
     cycle->new_log->file->name = error_log;
 
     // 给listening分配一块内存，listening底层是一个array
@@ -136,6 +138,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         module = ngx_modules[i]->ctx;
         // 用于存储各类型模块下子模块的配置
         if (module->create_conf) {
+            // 分配一块内存存储子模块的数据结构，如ngx_core_module_create_conf函数
             rv = module->create_conf(cycle);
             if (rv == NGX_CONF_ERROR) {
                 ngx_destroy_pool(pool);
@@ -161,7 +164,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     conf.module_type = NGX_CORE_MODULE;
     conf.cmd_type = NGX_MAIN_CONF;
 
-
+    // 解析配置文件，把结果写入conf
     if (ngx_conf_parse(&conf, &cycle->conf_file) != NGX_CONF_OK) {
         ngx_destroy_pool(pool);
         return NULL;
@@ -180,8 +183,9 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         }
 
         module = ngx_modules[i]->ctx;
-
+        // 如ngx_core_module_init_conf函数
         if (module->init_conf) {
+            // cycle->conf_ctx[ngx_modules[i]->index]由crete_init函数创建
             if (module->init_conf(cycle, cycle->conf_ctx[ngx_modules[i]->index])
                                                               == NGX_CONF_ERROR)
             {
@@ -274,6 +278,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     if (!failed) {
         if (old_cycle->listening.nelts) {
             ls = old_cycle->listening.elts;
+            // 废弃旧的
             for (i = 0; i < old_cycle->listening.nelts; i++) {
                 ls[i].remain = 0;
             }
@@ -281,6 +286,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
             nls = cycle->listening.elts;
             for (n = 0; n < cycle->listening.nelts; n++) {
                 for (i = 0; i < old_cycle->listening.nelts; i++) {
+                    // 继承时发生了错误则跳过
                     if (ls[i].ignore) {
                         continue;
                     }
@@ -333,7 +339,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
             }
         }
     }
-
+    // 如果失败，关闭打开的文件和socket
     if (failed) {
 
         /* rollback the new cycle configuration */
@@ -391,7 +397,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     /* commit the new cycle configuration */
 
 #if !(WIN32)
-
+    // log不是输出到标准错误流，则把错误输出重定向到fd对应的文件中
     if (!ngx_test_config && cycle->log->file->fd != STDERR_FILENO) {
 
         ngx_log_debug3(NGX_LOG_DEBUG_CORE, log, 0,
@@ -410,7 +416,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
 #endif
 
     pool->log = cycle->log;
-
+    // 配置处理完，开始初始化各个模块
     for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->init_module) {
             if (ngx_modules[i]->init_module(cycle) == NGX_ERROR) {
@@ -423,7 +429,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     /* close and delete stuff that lefts from an old cycle */
 
     /* close the unneeded listening sockets */
-
+    // 关闭继承下来的socket
     ls = old_cycle->listening.elts;
     for (i = 0; i < old_cycle->listening.nelts; i++) {
         if (ls[i].remain) {

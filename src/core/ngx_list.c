@@ -12,7 +12,7 @@ void *ngx_list_push(ngx_list_t *l)
 {
     void             *elt;
     ngx_list_part_t  *last;
-
+    // 指向当前可用的节点
     last = l->last;
     // 已使用的个数等于最多能使用的个数，说明已经没有可使用的空间，再分配一个ngx_list_part_t
     if (last->nelts == l->nalloc) {
@@ -29,9 +29,9 @@ void *ngx_list_push(ngx_list_t *l)
         // 当前新分配的节点已使用块数为0
         last->nelts = 0;
         last->next = NULL;
-        // 链成链表，第一个ngx_list_part_t节点充当头指针，可以通过ngx_list_t访问
+        // 链成链表，第一个ngx_list_part_t节点充当头指针，可以通过ngx_list_t->part访问
         l->last->next = last;
-        // 之前当前可使用的ngx_list_part_t节点
+        // 指向当前可使用的ngx_list_part_t节点
         l->last = last;
     }
     // 当前可分配内存的块首地址加上已经使用的内存，即下一个可用块的首地址

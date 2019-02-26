@@ -306,12 +306,12 @@ ngx_int_t ngx_log_init_error_log()
 
 #endif
 
-
+//  创建一个ngx_log_t结构体,管理错误输出的log
 ngx_log_t *ngx_log_create_errlog(ngx_cycle_t *cycle, ngx_array_t *args)
 {
     ngx_log_t  *log;
     ngx_str_t  *value, *name;
-
+    // 传了则取传进来的参数，否则取默认的
     if (args) {
         value = args->elts;
         name = &value[1];

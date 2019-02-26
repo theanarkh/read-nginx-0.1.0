@@ -69,7 +69,7 @@ char *ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
     if (filename) {
 
         /* open configuration file */
-
+        // 打开配置文件
         fd = ngx_open_file(filename->data, NGX_FILE_RDONLY, NGX_FILE_OPEN);
         if (fd == NGX_INVALID_FILE) {
             ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
@@ -81,12 +81,12 @@ char *ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
         if (!(cf->conf_file = ngx_palloc(cf->pool, sizeof(ngx_conf_file_t)))) {
             return NGX_CONF_ERROR;
         }
-
+        // 获取文件的stat信息，写入info字段
         if (ngx_fd_info(fd, &cf->conf_file->file.info) == -1) {
             ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
                           ngx_fd_info_n " %s failed", filename->data);
         }
-        // 分配一块内存给分析文件时用
+        // 分配一块由buffer管理的内存给分析文件时用
         if (!(cf->conf_file->buffer = ngx_create_temp_buf(cf->pool, 1024))) {
             return NGX_CONF_ERROR;
         }
@@ -296,8 +296,9 @@ ngx_log_debug(cf->log, "rv: %d" _ rv);
     }
 
     if (filename) {
+        // 保存原来的文件信息
         cf->conf_file = prev;
-
+        // 关闭打开的配置文件
         if (ngx_close_file(fd) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_ALERT, cf->log, ngx_errno,
                           ngx_close_file_n " %s failed",
@@ -374,7 +375,7 @@ ngx_log_debug(cf->log, "%d:%d:%d:%d:%d '%c'" _
         // 如果遇到换行，则行数加1
         if (ch == LF) {
             cf->conf_file->line++;
-            // 如果处于注释状态，则清0
+            // 处于注释状态，因为换行了，则清0，结束注释状态
             if (sharp_comment) {
                 sharp_comment = 0;
             }
@@ -574,19 +575,19 @@ ngx_int_t ngx_conf_full_name(ngx_cycle_t *cycle, ngx_str_t *name)
 {
     u_char     *p;
     ngx_str_t   old;
-
+    // 根目录开头则说明已经是绝对路径
     if (name->data[0] == '/') {
         return NGX_OK;
     }
-
+    // 保存相对路径的字符串
     old = *name;
-
+    // 根目录的路径长度加配置文件的相对路径长度=绝对路径长度
     name->len = cycle->root.len + old.len;
-
+    // 分配存储绝对路径的内存
     if (!(name->data = ngx_palloc(cycle->pool, name->len + 1))) {
         return  NGX_ERROR;
     }
-
+    // 把绝对路径复制到name中
     p = ngx_cpymem(name->data, cycle->root.data, cycle->root.len),
     ngx_cpystrn(p, old.data, old.len + 1);
 
@@ -636,7 +637,7 @@ ngx_open_file_t *ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
             }
         }
     }
-
+    // nginx初始化的时候，name是null，open_files是空数组
     if (!(file = ngx_list_push(&cycle->open_files))) {
         return NULL;
     }
@@ -646,6 +647,7 @@ ngx_open_file_t *ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
         file->name = full;
 
     } else {
+        // 默认使用标准错误流作为错误输出
         file->fd = ngx_stderr_fileno;
         file->name.len = 0;
         file->name.data = NULL;

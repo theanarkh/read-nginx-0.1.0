@@ -12,6 +12,19 @@ ngx_epoch_msec_t  ngx_elapsed_msec;
 ngx_epoch_msec_t  ngx_old_elapsed_msec;
 ngx_epoch_msec_t  ngx_start_msec;
 
+
+//    struct tm {
+// 　　int tm_sec; /* 秒 – 取值区间为[0,59] */
+// 　　int tm_min; /* 分 - 取值区间为[0,59] */
+// 　　int tm_hour; /* 时 - 取值区间为[0,23] */
+// 　　int tm_mday; /* 一个月中的日期 - 取值区间为[1,31] */
+// 　　int tm_mon; /* 月份（从一月开始，0代表一月） - 取值区间为[0,11] */
+// 　　int tm_year; /* 年份，其值等于实际年份减去1900 */
+// 　　int tm_wday; /* 星期 – 取值区间为[0,6]，其中0代表星期天，1代表星期一，以此类推 */
+// 　　int tm_yday; /* 从每年的1月1日开始的天数 – 取值区间为[0,365]，其中0代表1月1日，1代表1月2日，以此类推 */
+// 　　int tm_isdst; /* 夏令时标识符，实行夏令时的时候，tm_isdst为正。不实行夏令时的进候，tm_isdst为0；不了解情况时，tm_isdst()为负。*/
+　 //　};
+
 static ngx_tm_t   ngx_cached_gmtime;
 static ngx_int_t  ngx_gmtoff;
 
@@ -89,11 +102,11 @@ void ngx_time_init()
 #endif
     // 获取系统时间
     ngx_gettimeofday(&tv);
-
+    // 记录nginx启动时间
     ngx_start_msec = (ngx_epoch_msec_t) tv.tv_sec * 1000 + tv.tv_usec / 1000;
     ngx_old_elapsed_msec = 0;
     ngx_elapsed_msec = 0;
-
+// http://man7.org/linux/man-pages/man3/tzset.3.html
 #if !(WIN32)
     tzset();
 #endif
@@ -120,7 +133,7 @@ void ngx_time_update(time_t s)
 {
     u_char    *p;
     ngx_tm_t   tm;
-
+    // 和缓存的时间一样则返回
     if (ngx_time() == s) {
         return;
     }
@@ -142,9 +155,9 @@ void ngx_time_update(time_t s)
 #endif
 
 #endif
-
+    // 把s存在索引为slot的元素中
     ngx_time() = s;
-
+    // 给ngx_cached_gmtime变量赋值
     ngx_gmtime(s, &ngx_cached_gmtime);
 
 

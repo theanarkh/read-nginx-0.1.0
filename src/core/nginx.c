@@ -115,7 +115,7 @@ int main(int argc, char *const *argv)
 #if (HAVE_PCRE)
     ngx_regex_init();
 #endif
-
+    // 获取当前进程的pid
     ngx_pid = ngx_getpid();
     // 初始化错误日志输出结构
     if (!(log = ngx_log_init_stderr())) {
@@ -139,7 +139,7 @@ int main(int argc, char *const *argv)
     if (!(init_cycle.pool = ngx_create_pool(1024, log))) {
         return 1;
     }
-    // 解析执行nginx命令时传入的参数
+    // 解析执行nginx命令时传入的参数，把值写入init_cycle
     if (ngx_getopt(&ctx, &init_cycle) == NGX_ERROR) {
         return 1;
     }
@@ -248,7 +248,9 @@ static ngx_int_t ngx_add_inherited_sockets(ngx_cycle_t *cycle)
                    10, sizeof(ngx_listening_t), NGX_ERROR);
 
     for (p = inherited, v = p; *p; p++) {
+        // 以:或;分割
         if (*p == ':' || *p == ';') {
+            // 把字符串转成数字，比如'111'转成111
             s = ngx_atoi(v, p - v);
             if (s == NGX_ERROR) {
                 ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
@@ -257,17 +259,17 @@ static ngx_int_t ngx_add_inherited_sockets(ngx_cycle_t *cycle)
                               "ignoring the rest of the variable", v);
                 break;
             }
-
+            // 指向剩下待解析的字符串首地址
             v = p + 1;
-            // 保存之前的fd
+            // 拿到可用元素的首地址
             if (!(ls = ngx_push_array(&cycle->listening))) {
                 return NGX_ERROR;
             }
-
+            // 保存之前的fd
             ls->fd = s;
         }
     }
-
+    // 
     ngx_inherited = 1;
 
     return ngx_set_inherited_sockets(cycle);
@@ -314,8 +316,9 @@ ngx_pid_t ngx_exec_new_binary(ngx_cycle_t *cycle, char *const *argv)
 static ngx_int_t ngx_getopt(ngx_master_ctx_t *ctx, ngx_cycle_t *cycle)
 {
     ngx_int_t  i;
-
+    // 第一个值是nginx 
     for (i = 1; i < ctx->argc; i++) {
+        // 参数要以-开头
         if (ctx->argv[i][0] != '-') {
             ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                           "invalid option: \"%s\"", ctx->argv[i]);
@@ -335,7 +338,7 @@ static ngx_int_t ngx_getopt(ngx_master_ctx_t *ctx, ngx_cycle_t *cycle)
                               ctx->argv[i]);
                 return NGX_ERROR;
             }
-
+            // 保存配置文件路径
             cycle->conf_file.data = (u_char *) ctx->argv[++i];
             cycle->conf_file.len = ngx_strlen(cycle->conf_file.data);
             break;
@@ -346,12 +349,12 @@ static ngx_int_t ngx_getopt(ngx_master_ctx_t *ctx, ngx_cycle_t *cycle)
             return NGX_ERROR;
         }
     }
-
+    // 没有自定义的配置文件，则取默认的
     if (cycle->conf_file.data == NULL) {
         cycle->conf_file.len = sizeof(NGX_CONF_PATH) - 1;
         cycle->conf_file.data = (u_char *) NGX_CONF_PATH;
     }
-
+    // 解析配置文件的绝对路径
     if (ngx_conf_full_name(cycle, &cycle->conf_file) == NGX_ERROR) {
         return NGX_ERROR;
     }
