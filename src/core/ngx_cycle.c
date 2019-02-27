@@ -71,7 +71,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->root.len = sizeof(NGX_PREFIX) - 1;
     cycle->root.data = (u_char *) NGX_PREFIX;
 
-
+    // 初始化的时候这些值都是0
     n = old_cycle->pathes.nelts ? old_cycle->pathes.nelts : 10;
     if (!(cycle->pathes.elts = ngx_pcalloc(pool, n * sizeof(ngx_path_t *)))) {
         ngx_destroy_pool(pool);
@@ -82,7 +82,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->pathes.nalloc = n;
     cycle->pathes.pool = pool;
 
-    // nelts > 0说明有已经打开的文件，累积分配的元素个数
+    // nelts > 0说明有已经打开的文件，累积分配的元素个数,初始化的时候这些值都是0
     if (old_cycle->open_files.part.nelts) {
         // 保存第一个节点已经分配的块数
         n = old_cycle->open_files.part.nelts;
@@ -110,7 +110,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     
     cycle->new_log->file->name = error_log;
 
-    // 给listening分配一块内存，listening底层是一个array
+    // 给listening分配一块内存，listening底层是一个array,初始化的时候这些值都是0
     n = old_cycle->listening.nelts ? old_cycle->listening.nelts : 10;
     cycle->listening.elts = ngx_pcalloc(pool, n * sizeof(ngx_listening_t));
     if (cycle->listening.elts == NULL) {
@@ -122,14 +122,14 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->listening.nalloc = n;
     cycle->listening.pool = pool;
 
-    // 核心模块个数
+    // 模块个数,申请保存所有模块配置的内存
     cycle->conf_ctx = ngx_pcalloc(pool, ngx_max_module * sizeof(void *));
     if (cycle->conf_ctx == NULL) {
         ngx_destroy_pool(pool);
         return NULL;
     }
 
-
+    // 执行核心模块的钩子函数，该版本只有ngx_core_module模块定义了这些钩子
     for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->type != NGX_CORE_MODULE) {
             continue;
@@ -148,7 +148,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         }
     }
 
-
+    // 初始化保存指令信息的结构体
     ngx_memzero(&conf, sizeof(ngx_conf_t));
     /* STUB: init array ? */
     conf.args = ngx_create_array(pool, 10, sizeof(ngx_str_t));
@@ -156,7 +156,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         ngx_destroy_pool(pool);
         return NULL;
     }
-
+    // 指向所有模块的上下文
     conf.ctx = cycle->conf_ctx;
     conf.cycle = cycle;
     conf.pool = pool;

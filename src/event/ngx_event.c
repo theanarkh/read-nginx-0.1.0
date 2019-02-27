@@ -292,7 +292,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
         // 根据配置使用相应的模块，use在处理use配置时赋值
         if (ngx_modules[m]->ctx_index == ecf->use) {
             module = ngx_modules[m]->ctx;
-            // 初始化选择的模块
+            // 初始化选择的模块,比如执行epoll的init函数
             if (module->actions.init(cycle) == NGX_ERROR) {
                 /* fatal */
                 exit(2);
@@ -488,14 +488,14 @@ static char *ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_test_null(*ctx,
                   ngx_pcalloc(cf->pool, ngx_event_max_module * sizeof(void *)),
                   NGX_CONF_ERROR);
-
+    // event是NGX_MAIN_CONF类型的模块，conf为四级指针
     *(void **) conf = ctx;
 
     for (m = 0; ngx_modules[m]; m++) {
         if (ngx_modules[m]->type != NGX_EVENT_MODULE) {
             continue;
         }
-
+        // event类型的模块的ctx
         module = ngx_modules[m]->ctx;
 
         if (module->create_conf) {
@@ -506,6 +506,7 @@ static char *ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     pcf = *cf;
+    // 修改当前的上下文
     cf->ctx = ctx;
     cf->module_type = NGX_EVENT_MODULE;
     cf->cmd_type = NGX_EVENT_CONF;
@@ -523,6 +524,7 @@ static char *ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         module = ngx_modules[m]->ctx;
         // 初始化create_conf创建的结构体
         if (module->init_conf) {
+            // 如果在ngx_conf_parse里没有对模块的配置进行初始化则这里进行默认初始化，一般是在cmd的set函数进行初始化
             rv = module->init_conf(cf->cycle,
                                    (*ctx)[ngx_modules[m]->ctx_index]);
             if (rv != NGX_CONF_OK) {

@@ -50,7 +50,7 @@ static int argument_number[] = {
 
 static int ngx_conf_read_token(ngx_conf_t *cf);
 
-
+// 解析配置函数
 char *ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
 {
     int               m, rc, found, valid;
@@ -78,6 +78,7 @@ char *ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
         }
 
         prev = cf->conf_file;
+        // 分配一个新的结构体，保存文件的信息
         if (!(cf->conf_file = ngx_palloc(cf->pool, sizeof(ngx_conf_file_t)))) {
             return NGX_CONF_ERROR;
         }
@@ -141,7 +142,7 @@ ngx_log_debug(cf->log, "token %d" _ rc);
                 break;
             }
         }
-
+        // 在ngx_conf_read_token里赋值
         name = (ngx_str_t *) cf->args->elts;
         found = 0;
         // 把解析到的参数分到每个匹配的模块中处理
@@ -235,14 +236,17 @@ ngx_log_debug(cf->log, "command '%s'" _ cmd->name.data);
                     /* set up the directive's configuration context */
 
                     conf = NULL;
-
+                    // 可以出现在配置文件中最外层。例如已经提供的配置指令daemon
                     if (cmd->type & NGX_DIRECT_CONF) {
+                        // 二级指针
                         conf = ((void **) cf->ctx)[ngx_modules[m]->index];
 
                     } else if (cmd->type & NGX_MAIN_CONF) {
+                        // conf是四级指针
                         conf = &(((void **) cf->ctx)[ngx_modules[m]->index]);
 
-                    } else if (cf->ctx) {
+                    } else if (cf->ctx) { // 指向当前核心模块下的配置数组
+                        // 一级指针
                         confp = *(void **) ((char *) cf->ctx + cmd->conf);
 
                         if (confp) {

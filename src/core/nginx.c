@@ -82,7 +82,7 @@ static ngx_core_module_t  ngx_core_module_ctx = {
     ngx_core_module_init_conf
 };
 
-// nginx的核心模块，nginx模块分为core、http、mail、event四种类型的模块
+// nginx的核心模块，nginx模块分为core、http、log、event四种类型的模块
 ngx_module_t  ngx_core_module = {
     NGX_MODULE,
     &ngx_core_module_ctx,                  /* module context */
@@ -151,11 +151,11 @@ int main(int argc, char *const *argv)
     if (ngx_os_init(log) == NGX_ERROR) {
         return 1;
     }
-
+    // 继承上一次的打开的socket,存在listen字段表示的数组里，并填充其地址、协议簇等字段
     if (ngx_add_inherited_sockets(&init_cycle) == NGX_ERROR) {
         return 1;
     }
-    // 给所有的nginx模块编号，一共有四种类型模块
+    // 给所有的nginx模块编号
     ngx_max_module = 0;
     for (i = 0; ngx_modules[i]; i++) {
         ngx_modules[i]->index = ngx_max_module++;
@@ -269,7 +269,7 @@ static ngx_int_t ngx_add_inherited_sockets(ngx_cycle_t *cycle)
             ls->fd = s;
         }
     }
-    // 
+    // 打标记 
     ngx_inherited = 1;
 
     return ngx_set_inherited_sockets(cycle);
@@ -362,7 +362,7 @@ static ngx_int_t ngx_getopt(ngx_master_ctx_t *ctx, ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-
+// 创建一个结构体保存核心配置，并初始化各字段
 static void *ngx_core_module_create_conf(ngx_cycle_t *cycle)
 {
     ngx_core_conf_t  *ccf;
