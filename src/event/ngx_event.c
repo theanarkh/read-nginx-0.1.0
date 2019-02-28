@@ -203,7 +203,7 @@ static ngx_int_t ngx_event_module_init(ngx_cycle_t *cycle)
     if (ccf->master == 0 || ngx_accept_mutex_ptr) {
         return NGX_OK;
     }
-
+    // 获取ngx_event_core_module模块的配置，即ngx_event_conf_t结构体
     ecf = ngx_event_get_conf(cycle->conf_ctx, ngx_event_core_module);
 
 
@@ -308,6 +308,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
     }
 
     c = cycle->connections;
+    // 初始化字段
     for (i = 0; i < cycle->connection_n; i++) {
         c[i].fd = (ngx_socket_t) -1;
         c[i].data = NULL;
@@ -347,7 +348,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
     }
 
     /* for each listening socket */
-    // 把监听的端口对应的fd加入到epoll事件
+    // 初始化connection结构体，注册监听的fd到事件驱动模块，比如epoll
     s = cycle->listening.elts;
     for (i = 0; i < cycle->listening.nelts; i++) {
 
@@ -368,7 +369,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
 
         ngx_memzero(c, sizeof(ngx_connection_t));
         ngx_memzero(rev, sizeof(ngx_event_t));
-
+        // 把监听的fd和listening结构体挂载到connection结构体中
         c->fd = s[i].fd;
         c->listening = &s[i];
 
@@ -395,7 +396,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
 #if (HAVE_DEFERRED_ACCEPT)
         rev->deferred_accept = s[i].deferred_accept;
 #endif
-
+        // 
         if (!(ngx_event_flags & NGX_USE_IOCP_EVENT)) {
             if (s[i].remain) {
 
@@ -413,7 +414,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
                 cycle->old_cycle->connections[fd].fd = (ngx_socket_t) -1;
             }
         }
-
+// 忽略
 #if (WIN32)
 
         if (ngx_event_flags & NGX_USE_IOCP_EVENT) {
@@ -444,13 +445,14 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
         if (ngx_accept_mutex) {
             continue;
         }
-
+        // 使用的是ngx_rtsig_module事件驱动模块
         if (ngx_event_flags & NGX_USE_RTSIG_EVENT) {
             if (ngx_add_conn(c) == NGX_ERROR) {
                 return NGX_ERROR;
             }
 
         } else {
+            // 加入读事件，等待事件到来执行刚才注册的ngx_event_accept函数
             if (ngx_add_event(rev, NGX_READ_EVENT, 0) == NGX_ERROR) {
                 return NGX_ERROR;
             }
