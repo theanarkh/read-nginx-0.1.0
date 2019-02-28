@@ -482,9 +482,9 @@ static char *ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         ngx_modules[m]->ctx_index = ngx_event_max_module++;
     }
-
+    // ctx指向一个指针
     ngx_test_null(ctx, ngx_pcalloc(cf->pool, sizeof(void *)), NGX_CONF_ERROR);
-
+    // ctx指向的指针再指向一个指针数组
     ngx_test_null(*ctx,
                   ngx_pcalloc(cf->pool, ngx_event_max_module * sizeof(void *)),
                   NGX_CONF_ERROR);
@@ -497,25 +497,31 @@ static char *ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
         // event类型的模块的ctx
         module = ngx_modules[m]->ctx;
-
+        // 把create_conf返回的数据结构存储在上面开辟的数组里
         if (module->create_conf) {
             ngx_test_null((*ctx)[ngx_modules[m]->ctx_index],
                           module->create_conf(cf->cycle),
                           NGX_CONF_ERROR);
         }
     }
-
+    // event模块都是基于下面的上下文配置进行命令的解析
     pcf = *cf;
-    // 修改当前的上下文
+    // 修改当前的上下文和作用域信息
     cf->ctx = ctx;
+    // 用于过滤模块类型，即接下来的配置解析中，等于该类型的模块才能处理该命令
     cf->module_type = NGX_EVENT_MODULE;
+    /*
+        解析出一个配置的时候，如果匹配到了某个命令配置，则该命令配置是否是属于NGX_EVENT_CONF类型，
+        用于二级 过滤，即过滤掉同模块里的不符合条件的模块
+    */
     cf->cmd_type = NGX_EVENT_CONF;
+    // 继续解析，对event模块的子模块的字段进行赋值
     rv = ngx_conf_parse(cf, NULL);
     *cf = pcf;
 
     if (rv != NGX_CONF_OK)
         return rv;
-
+    // 如果ngx_conf_parse没有进行赋值，则执行init_conf函数时进行默认初始化
     for (m = 0; ngx_modules[m]; m++) {
         if (ngx_modules[m]->type != NGX_EVENT_MODULE) {
             continue;
@@ -543,12 +549,13 @@ static char *ngx_event_connections(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_event_conf_t  *ecf = conf;
 
     ngx_str_t  *value;
-
+    // 已经初始化过了
     if (ecf->connections != NGX_CONF_UNSET_UINT) {
         return "is duplicate" ;
     }
-
+    // 从配置文件中解析出来的配置
     value = cf->args->elts;
+    // 字符串转成整形
     ecf->connections = ngx_atoi(value[1].data, value[1].len);
     if (ecf->connections == (ngx_uint_t) NGX_ERROR) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -562,7 +569,7 @@ static char *ngx_event_connections(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-// 记录use的值
+// 记录use和name的值
 static char *ngx_event_use(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_event_conf_t  *ecf = conf;
@@ -594,7 +601,7 @@ static char *ngx_event_use(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         module = ngx_modules[m]->ctx;
         if (module->name->len == value[1].len) {
             if (ngx_strcmp(module->name->data, value[1].data) == 0) {
-                // 存储事件模块的下标
+                // 存储事件模块的下标,而不是字符串
                 ecf->use = ngx_modules[m]->ctx_index;
                 ecf->name = module->name->data;
 
@@ -629,6 +636,7 @@ static char *ngx_event_use(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *ngx_event_debug_connection(ngx_conf_t *cf, ngx_command_t *cmd,
                                         void *conf)
 {
+// 配置后需要开启debug参数
 #if (NGX_DEBUG)
     ngx_event_conf_t  *ecf = conf;
 
@@ -643,20 +651,20 @@ static char *ngx_event_debug_connection(ngx_conf_t *cf, ngx_command_t *cmd,
     if (!(addr = ngx_push_array(&ecf->debug_connection))) {
         return NGX_CONF_ERROR;
     }
-
+    // 将ip转成长整型
     *addr = inet_addr((char *) value[1].data);
-
+    // 转成功则返回
     if (*addr != INADDR_NONE) {
         return NGX_OK;
     }
-
+    // 没转成功可能是一个主机字符串，获取该主机对应的ip信息
     h = gethostbyname((char *) value[1].data);
 
     if (h == NULL || h->h_addr_list[0] == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "host %s not found", value[1].data);
         return NGX_CONF_ERROR;
-    }
+}
 
     *addr = *(in_addr_t *)(h->h_addr_list[0]);
 
@@ -796,6 +804,7 @@ static char *ngx_event_init_conf(ngx_cycle_t *cycle, void *conf)
 
 static char *ngx_accept_mutex_check(ngx_conf_t *cf, void *post, void *data)
 {
+// 不支持该功能，重置字段
 #if !(NGX_HAVE_ATOMIC_OPS)
 
     ngx_flag_t *fp = data;

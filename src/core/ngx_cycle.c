@@ -55,7 +55,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     if (!(pool = ngx_create_pool(16 * 1024, log))) {
         return NULL;
     }
-    // 多余赋值
+    
     pool->log = log;
     // 创建一个新的cycle
     if (!(cycle = ngx_pcalloc(pool, sizeof(ngx_cycle_t)))) {
@@ -207,7 +207,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
 
 
     if (!failed) {
-
+        // 首次启动时为空
         part = &cycle->open_files.part;
         file = part->elts;
         // 遍历打开open_files中的所有文件
@@ -276,6 +276,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
     }
 
     if (!failed) {
+        // 有没有已监听的地址，初始化为空
         if (old_cycle->listening.nelts) {
             ls = old_cycle->listening.elts;
             // 废弃旧的
@@ -332,7 +333,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
                 ls[i].new = 1;
             }
         }
-        // 监听listening里面的地址
+        // 监听listening里面的地址,把新申请的socket对应的文件描述符存到listen字段
         if (!ngx_test_config && !failed) {
             if (ngx_open_listening_sockets(cycle) == NGX_ERROR) {
                 failed = 1;

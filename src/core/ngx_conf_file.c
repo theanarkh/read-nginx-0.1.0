@@ -65,7 +65,7 @@ char *ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename)
     fd = NGX_INVALID_FILE;
     prev = NULL;
 #endif
-
+    // 
     if (filename) {
 
         /* open configuration file */
@@ -149,7 +149,7 @@ ngx_log_debug(cf->log, "token %d" _ rc);
         for (m = 0; rc != NGX_ERROR && !found && ngx_modules[m]; m++) {
 
             /* look up the directive in the appropriate modules */
-
+            // cf->module_type保存了当前的模块类型
             if (ngx_modules[m]->type != NGX_CONF_MODULE
                 && ngx_modules[m]->type != cf->module_type)
             {
@@ -236,7 +236,7 @@ ngx_log_debug(cf->log, "command '%s'" _ cmd->name.data);
                     /* set up the directive's configuration context */
 
                     conf = NULL;
-                    // 可以出现在配置文件中最外层。例如已经提供的配置指令daemon
+                    // 可以出现在配置文件中最外层。只有ngx_core_module_ctx模块才是这种类型
                     if (cmd->type & NGX_DIRECT_CONF) {
                         // 二级指针
                         conf = ((void **) cf->ctx)[ngx_modules[m]->index];
@@ -245,7 +245,7 @@ ngx_log_debug(cf->log, "command '%s'" _ cmd->name.data);
                         // conf是四级指针
                         conf = &(((void **) cf->ctx)[ngx_modules[m]->index]);
 
-                    } else if (cf->ctx) { // 指向当前核心模块下的配置数组
+                    } else if (cf->ctx) { // 指向当前模块下的配置数组
                         // 一级指针
                         confp = *(void **) ((char *) cf->ctx + cmd->conf);
 

@@ -87,7 +87,7 @@ static u_int                nevents;
 
 
 static ngx_str_t      epoll_name = ngx_string("epoll");
-
+// 调用一次 epoll_wait 时最多可以返回的事件数
 static ngx_command_t  ngx_epoll_commands[] = {
 
     {ngx_string("epoll_events"),
