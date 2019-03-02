@@ -329,7 +329,7 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
     rule->last = 0;
 
     value = cf->args->elts;
-
+    // rewrite regex replacement [flag] 
     /* STUB */ {
         err.len = NGX_MAX_CONF_ERRSTR;
         err.data = errstr;
@@ -343,7 +343,7 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
     
         rule->re_name = value[1];
         rule->s_name = value[2];
-
+        // replacement是forbidden:并且没有flag
         if (ngx_strcasecmp(value[2].data, "forbidden:") == 0) {
 
             if (cf->args->nelts == 3) {
@@ -356,7 +356,7 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
                                "invalid parameter \"%s\"", value[3].data);
             return NGX_CONF_ERROR;
         }
-
+        // 开始解析replacement
         for (i = 0; i < value[2].len; /* void */) {
 
             if (!(op = ngx_push_array(&rule->ops))) {
@@ -369,10 +369,12 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
                 && i < value[2].len
                 && value[2].data[i + 1] >= '1'
                 && value[2].data[i + 1] <= '9')
-            {
+            {   
+                // 记录操作类型
                 op->op = NGX_HTTP_REWRITE_COPY_MATCH; 
+                // 把'1'转成1
                 op->data = value[2].data[++i] - '0';
-
+                // 记录最大值
                 if (rule->msize < op->data) {
                     rule->msize = op->data;
                 }
@@ -381,11 +383,11 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
 
             } else {
                 i++;
-
+                // 找到$
                 while (i < value[2].len && value[2].data[i] != '$') {
                     i++;
                 }
-
+                // 这一次循环走过的字节数
                 len = &value[2].data[i] - data;
                 rule->size += len;
 
@@ -420,7 +422,7 @@ static char *ngx_http_rewrite_rule(ngx_conf_t *cf, ngx_command_t *cmd,
             rule->msize++;
             rule->msize *= 3;
         }
-
+        // 解析flag
         if (cf->args->nelts > 3) {
             if (ngx_strcmp(value[3].data, "last") == 0) {
                 rule->last = 1;

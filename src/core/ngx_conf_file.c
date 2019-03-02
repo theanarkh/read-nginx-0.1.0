@@ -246,9 +246,9 @@ ngx_log_debug(cf->log, "command '%s'" _ cmd->name.data);
                         conf = &(((void **) cf->ctx)[ngx_modules[m]->index]);
 
                     } else if (cf->ctx) { // 指向当前模块下的配置数组
-                        // 一级指针
+                        // 拿到上下文某个字段的地址 
                         confp = *(void **) ((char *) cf->ctx + cmd->conf);
-
+                        // 获取数组中的本模块的配置
                         if (confp) {
                             conf = confp[ngx_modules[m]->ctx_index];
                         }
@@ -700,7 +700,7 @@ char *ngx_conf_set_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     value = cf->args->elts;
-
+    // on代表开启
     if (ngx_strcasecmp(value[1].data, "on") == 0) {
         *fp = 1;
 
@@ -758,14 +758,15 @@ char *ngx_conf_set_num_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t        *value;
     ngx_conf_post_t  *post;
 
-
+    // 指向结构体某个字段的地址，offset在指令配置中指定
     np = (ngx_int_t *) (p + cmd->offset);
-
+    // 设置过了
     if (*np != NGX_CONF_UNSET) {
         return "is duplicate";
     }
 
     value = cf->args->elts;
+    // 设置
     *np = ngx_atoi(value[1].data, value[1].len);
     if (*np == NGX_ERROR) {
         return "invalid number";
@@ -825,7 +826,7 @@ char *ngx_conf_set_msec_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     value = cf->args->elts;
-
+    // 把字符串解析成时间
     *msp = ngx_parse_time(&value[1], 0);
     if (*msp == (ngx_msec_t) NGX_ERROR) {
         return "invalid value";
@@ -922,15 +923,17 @@ char *ngx_conf_set_enum_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     value = cf->args->elts;
+    // 数组，每个元素一个值有效值
     e = cmd->post;
 
     for (i = 0; e[i].name.len != 0; i++) {
+        // 长度不一样或不相等
         if (e[i].name.len != value[1].len
             || ngx_strcasecmp(e[i].name.data, value[1].data) != 0)
         {
             continue;
         }
-
+        // 转成内部表示的数值
         *np = e[i].value;
 
         return NGX_CONF_OK;
@@ -958,18 +961,19 @@ char *ngx_conf_set_bitmask_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     for (i = 1; i < cf->args->nelts; i++) {
         for (m = 0; mask[m].name.len != 0; m++) {
-
+            // 比较字符串，不一样则跳过，一样则判断是否已经存在，否则获取对应的mask设置对应的位
             if (mask[m].name.len != value[i].len
                 || ngx_strcasecmp(mask[m].name.data, value[i].data) != 0)
             {
                 continue;
             }
-
+            // 为true说明np已经存在该mask对应的值
             if (*np & mask[m].mask) {
                 ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
                                    "duplicate value \"%s\"", value[i].data);
 
             } else {
+                // 设置对应的位
                 *np |= mask[m].mask;
             }
 
@@ -998,7 +1002,7 @@ char *ngx_conf_check_num_bounds(ngx_conf_t *cf, void *post, void *data)
 {
     ngx_conf_num_bounds_t  *bounds = post;
     ngx_int_t  *np = data;
-
+    // 如果设置了hign是-1则只需要校验值是否大于low
     if (bounds->high == -1) {
         if (*np >= bounds->low) {
             return NGX_CONF_OK;
@@ -1009,7 +1013,7 @@ char *ngx_conf_check_num_bounds(ngx_conf_t *cf, void *post, void *data)
 
         return NGX_CONF_ERROR;
     }
-
+    // 校验值
     if (*np >= bounds->low && *np <= bounds->high) {
         return NGX_CONF_OK;
     }

@@ -362,19 +362,20 @@ char *ngx_http_set_cache_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (*chp) {
         return "is duplicate";
     }
-
+    // ch指向ngx_http_cache_hash_t结构体
     if (!(ch = ngx_pcalloc(cf->pool, sizeof(ngx_http_cache_hash_t)))) {
         return NGX_CONF_ERROR;
     }
+    // 挂载
     *chp = ch;
 
     dup = 0;
     invalid = 0;
 
     value = cf->args->elts;
-
+    // 格式 value[i] => a=1
     for (i = 1; i < cf->args->nelts; i++) {
-
+        // 第二个字符是=
         if (value[i].data[1] != '=') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "invalid value \"%s\"", value[i].data);
@@ -384,11 +385,12 @@ char *ngx_http_set_cache_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         switch (value[i].data[0]) {
 
         case 'h':
+            // 已经赋值过
             if (ch->hash) {
                 dup = 1;
                 break;
             }
-
+            // 把等号后面的值转成数字
             ch->hash = ngx_atoi(value[i].data + 2, value[i].len - 2);
             if (ch->hash == (size_t)  NGX_ERROR || ch->hash == 0) {
                 invalid = 1;
@@ -461,16 +463,17 @@ char *ngx_http_set_cache_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
     }
-
+    // 分配一个元素是ngx_http_cache_t的二维数组
     ch->elts = ngx_pcalloc(cf->pool,
                            ch->hash * ch->nelts * sizeof(ngx_http_cache_t));
     if (ch->elts == NULL) {
         return NGX_CONF_ERROR;
     }
-
+    // 初始化二维数组的字段
     for (i = 0; i < (ngx_int_t) ch->hash; i++) {
+        // ch->elts是一个二维数组，元素是ngx_http_cache_t，c等于每个一维数组的首地址 
         c = ch->elts + i * ch->nelts;
-
+        // 初始化该一维数组的fd字段，长度是ch->nelts
         for (j = 0; j < (ngx_int_t) ch->nelts; j++) {
             c[j].fd = NGX_INVALID_FILE;
         }

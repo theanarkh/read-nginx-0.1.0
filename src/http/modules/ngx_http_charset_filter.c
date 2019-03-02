@@ -410,11 +410,11 @@ static ngx_int_t ngx_http_add_charset(ngx_array_t *charsets, ngx_str_t *name)
             break;
         }
     }
-
+    // 已经存在则直接返回
     if (i < charsets->nelts) {
         return i;
     }
-
+    // 否则push进行
     if (!(c = ngx_push_array(charsets))) {
         return NGX_ERROR;
     }

@@ -902,18 +902,30 @@ ngx_inline static int ngx_http_gzip_error(ngx_http_gzip_ctx_t *ctx)
 static ngx_int_t ngx_http_gzip_pre_conf(ngx_conf_t *cf)
 {
     ngx_http_log_op_name_t  *op;
-
+    /*
+        找到第一个没有名字的项，即最后一项，然后把op置空，
+        为了防止下面一个for循环的时候op->op为空，不会导致死循环,
+        因为执行完该函数后，op->op是下一个pre_conf函数执行时，
+        ngx_http_log_fmt_ops数组的最后一个被判断的op->op
+    */
     for (op = ngx_http_gzip_log_fmt_ops; op->name.len; op++) { /* void */ }
     op->op = NULL;
 
     op = ngx_http_log_fmt_ops;
-
+    /*
+        找到最后一个op有值但是没有名字的项，这里其实是一个巧妙的设计，
+        因为op有值但是没有名字的项，op->op指向的是一个ngx_http_log_op_name_t数组，
+        然后op继续指向该数组第一个元素，继续迭代
+    */
     for (op = ngx_http_log_fmt_ops; op->op; op++) {
         if (op->name.len == 0) {
             op = (ngx_http_log_op_name_t *) op->op;
         }
     }
-
+    /*
+        每个模块中的ngx_http_log_op_name_t数组最后一个元素都是空的，
+        然后在这给op->op赋值，op->op指向的数组的最后一个元素也是空项，以此类推
+    */
     op->op = (ngx_http_log_op_pt) ngx_http_gzip_log_fmt_ops;
 
     return NGX_OK;
@@ -997,15 +1009,16 @@ static char *ngx_http_gzip_set_window(ngx_conf_t *cf, void *post, void *data)
     int  wbits, wsize;
 
     wbits = 15;
-
+    // 32 * 1024 = 2的15次方，256等于2的8次方
     for (wsize = 32 * 1024; wsize > 256; wsize >>= 1) {
-
+        // 如果用户传的和当前的大小一样，把绝对大小转成2的次方数存储
         if (wsize == *np) {
+            // 用户传的是1k，2k，nginx存的是2的几次方
             *np = wbits;
 
             return NGX_CONF_OK;
         }
-
+        // 减一即除以2，右移一位
         wbits--;
     }
 

@@ -82,7 +82,7 @@ struct ngx_command_s {
 
 #define ngx_null_command   { ngx_null_string, 0, NULL, 0, 0, NULL }
 
-
+// 管理打开的文件的结构体
 struct ngx_open_file_s {
     ngx_fd_t   fd;
     ngx_str_t  name;
@@ -206,7 +206,7 @@ char *ngx_conf_check_num_bounds(ngx_conf_t *cf, void *post, void *data);
     if (conf == NGX_CONF_UNSET_MSEC) {                                       \
         conf = default;                                                      \
     }
-
+// conf等于父层的值，如果没有则取默认的
 #define ngx_conf_merge_value(conf, prev, default)                            \
     if (conf == NGX_CONF_UNSET) {                                            \
         conf = (prev == NGX_CONF_UNSET) ? default : prev;                    \

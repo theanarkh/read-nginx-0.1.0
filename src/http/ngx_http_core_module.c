@@ -908,12 +908,13 @@ static char *ngx_server_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     ngx_http_conf_ctx_t         *ctx, *http_ctx;
     ngx_http_core_main_conf_t   *cmcf;
     ngx_http_core_srv_conf_t    *cscf, **cscfp;
-
+    // 分配一个ngx_http_conf_ctx_t结构体
     ngx_test_null(ctx,
                   ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t)),
                   NGX_CONF_ERROR);
 
     http_ctx = cf->ctx;
+    // main_conf来自父层
     ctx->main_conf = http_ctx->main_conf;
 
     /* the server{}'s srv_conf */
@@ -949,20 +950,22 @@ static char *ngx_server_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     }
 
     /* create links of the srv_conf's */
-
+    // 拿到ngx_http_core_module模块的配置,ngx_http_core_srv_conf_t
     cscf = ctx->srv_conf[ngx_http_core_module.ctx_index];
     cscf->ctx = ctx;
-
+    // cmcf: ngx_http_core_main_conf_t; 
     cmcf = ctx->main_conf[ngx_http_core_module.ctx_index];
     ngx_test_null(cscfp, ngx_push_array(&cmcf->servers), NGX_CONF_ERROR);
     *cscfp = cscf;
 
     /* parse inside server{} */
-
+    // 保存老的解析上下文
     pvcf = *cf;
+    // 设置新的解析上下文
     cf->ctx = ctx;
     cf->cmd_type = NGX_HTTP_SRV_CONF;
     rv = ngx_conf_parse(cf, NULL);
+    // 恢复老的解析上下文
     *cf = pvcf;
 
     if (rv != NGX_CONF_OK) {
@@ -1027,7 +1030,7 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     if (!(ctx = ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t)))) {
         return NGX_CONF_ERROR;
     }
-
+    // ctx是当前server
     pctx = cf->ctx;
     ctx->main_conf = pctx->main_conf;
     ctx->srv_conf = pctx->srv_conf;
@@ -1059,11 +1062,12 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     value = cf->args->elts;
 
     if (cf->args->nelts == 3) {
+        // location = xxx {},等于xxx，设置精准匹配标记
         if (value[1].len == 1 && value[1].data[0] == '=') {
             clcf->name.len = value[2].len;
             clcf->name.data = value[2].data;
             clcf->exact_match = 1;
-
+        // 以~或~*开头的，说明使用正则匹配
         } else if ((value[1].len == 1 && value[1].data[0] == '~')
                    || (value[1].len == 2
                        && value[1].data[0] == '~'
@@ -1072,7 +1076,7 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
 #if (HAVE_PCRE)
             err.len = NGX_MAX_CONF_ERRSTR;
             err.data = errstr;
-
+            
             clcf->regex = ngx_regex_compile(&value[2],
                                      value[1].len == 2 ? NGX_REGEX_CASELESS: 0,
                                      cf->pool, &err);
@@ -1081,7 +1085,7 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", err.data);
                 return NGX_CONF_ERROR;
             }
-
+            // 保存要匹配字符串
             clcf->name = value[2];
 #else
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -1099,10 +1103,11 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
         }
 
     } else {
+        // 一般情况，即location xxx {}
         clcf->name.len = value[1].len;
         clcf->name.data = value[1].data;
     }
-
+    // ngx_http_core_loc_conf_s 
     pclcf = pctx->loc_conf[ngx_http_core_module.ctx_index];
 
     if (pclcf->name.len == 0) {
@@ -1146,13 +1151,15 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
             return NGX_CONF_ERROR;
         }
     }
-
+    // 当前模块对应的location指令结构体
     *clcfp = clcf;
-
+    // 保存旧的上下文
     pcf = *cf;
+    // 更新上下文
     cf->ctx = ctx;
     cf->cmd_type = NGX_HTTP_LOC_CONF;
     rv = ngx_conf_parse(cf, NULL);
+    // 恢复上下文
     *cf = pcf;
 
     return rv;
@@ -1290,9 +1297,10 @@ static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
     ngx_http_core_main_conf_t  *cmcf;
 
     /* TODO: it does not merge, it inits only */
-
+    // 如果该server没有配置listen指令，则设置默认值
     if (conf->listen.nelts == 0) {
         ngx_test_null(l, ngx_push_array(&conf->listen), NGX_CONF_ERROR);
+        // 任何地址进来的连接都可以
         l->addr = INADDR_ANY;
 #if (WIN32)
         l->port = 80;
@@ -1302,12 +1310,12 @@ static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
 #endif
         l->family = AF_INET;
     }
-
+    // 没有配置servername
     if (conf->server_names.nelts == 0) {
         ngx_test_null(n, ngx_push_array(&conf->server_names), NGX_CONF_ERROR);
         ngx_test_null(n->name.data, ngx_palloc(cf->pool, NGX_MAXHOSTNAMELEN),
                       NGX_CONF_ERROR);
-
+        // 获取主机名 
         if (gethostname((char *) n->name.data, NGX_MAXHOSTNAMELEN) == -1) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
                                "gethostname() failed");
@@ -1518,7 +1526,7 @@ static char *ngx_set_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * TODO: check duplicate 'listen' directives,
      *       add resolved name to server names ???
      */
-
+    // ngx_http_core_srv_conf_t
     if (!(ls = ngx_array_push(&scf->listen))) {
         return NGX_CONF_ERROR;
     }
@@ -1532,21 +1540,21 @@ static char *ngx_set_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     args = cf->args->elts;
     addr = args[1].data;
-
+    // listen 120.0.0.1:80，遇到:则把:替换成\0，addr保存的是监听的地址
     for (p = 0; p < args[1].len; p++) {
         if (addr[p] == ':') {
             addr[p++] = '\0';
             break;
         }
     }
-
+    // 不是break出来的，说明内容里没有端口或者ip，设置p=0，即把整个字符串转成数字
     if (p == args[1].len) {
         /* no ":" in the "listen" */
         p = 0;
     }
 
     port = ngx_atoi(&addr[p], args[1].len - p);
-
+    // 报错p并且等于0，说明没有配置端口，则取80，报错并且p不等于0说明端口无效
     if (port == NGX_ERROR && p == 0) {
 
         /* "listen host" */
@@ -1562,15 +1570,16 @@ static char *ngx_set_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         return NGX_CONF_ERROR;
 
-    } else if (p == 0) {
+    } else if (p == 0) {// 没报错，并且p等于0，说明配置格式是listen 80.即没有配地址，则取INADDR_ANY
         ls->addr = INADDR_ANY;
         ls->port = (in_port_t) port;
         return NGX_CONF_OK;
 
     } else {
+        // 没报错p也不为空说明配置格式是listen 127.0.0.1:80
         ls->port = (in_port_t) port;
     }
-
+    // 监听地址
     ls->addr = inet_addr((const char *) addr);
     if (ls->addr == INADDR_NONE) {
         h = gethostbyname((const char *) addr);
@@ -1605,10 +1614,11 @@ static char *ngx_set_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ctx = (ngx_http_conf_ctx_t *) cf->cycle->conf_ctx[ngx_http_module.index];
     cmcf = ctx->main_conf[ngx_http_core_module.ctx_index];
 #endif
+    // 获取ngx_http_core_module模块在当前上下文中，在main_conf数组中的值，是ngx_http_core_loc_conf_s 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     value = cf->args->elts;
-
+    // 保存servername
     for (i = 1; i < cf->args->nelts; i++) {
         if (value[i].len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -1622,8 +1632,9 @@ static char *ngx_set_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         sn->name.len = value[i].len;
         sn->name.data = value[i].data;
+        // 指向父层的srv配置
         sn->core_srv_conf = scf;
-
+        // 更新servername长度
         if (cmcf->max_server_name_len < sn->name.len) {
             cmcf->max_server_name_len = sn->name.len;
         }
@@ -1664,7 +1675,7 @@ static char *ngx_set_root(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     lcf->alias = alias;
     lcf->root = value[1];
-
+    // 去掉root对应的值中最后一个/
     if (!alias && lcf->root.data[lcf->root.len - 1] == '/') {
         lcf->root.len--;
     }
@@ -1693,14 +1704,15 @@ static char *ngx_set_error_page(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
 
     i = cf->args->nelts - 2;
-
+    // 倒数第二个参数的值
     if (value[i].data[0] == '=') {
+        // 至少等于2，因为前面是error_page 错误码 
         if (i == 1) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "invalid value \"%s\"", value[i].data);
             return NGX_CONF_ERROR;
         }
-
+        // 重写后的错误码，error_page 404 =200 xx.html，则返回的码是200，内容是xx.html
         overwrite = ngx_atoi(&value[i].data[1], value[i].len - 1);
 
         if (overwrite == NGX_ERROR) {
@@ -1708,34 +1720,36 @@ static char *ngx_set_error_page(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                                "invalid value \"%s\"", value[i].data);
             return NGX_CONF_ERROR;
         }
-
+        // 有=则说明配置中第二个值到倒数第三个值是错误码
         n = 2;
 
     } else {
         overwrite = 0;
+        // 没有=则说明配置中第二个值到倒数第2个值是错误码 
         n = 1;
     }
-
+    // 错误码范围
     for (i = 1; i < cf->args->nelts - n; i++) {
         if (!(err = ngx_push_array(lcf->error_pages))) {
             return NGX_CONF_ERROR;
         }
-
+        // 解析错误码
         err->status = ngx_atoi(value[i].data, value[i].len);
         if (err->status == NGX_ERROR) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "invalid value \"%s\"", value[i].data);
             return NGX_CONF_ERROR;
         }
-
+        // 校验
         if (err->status < 400 || err->status > 599) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "value \"%s\" must be between 400 and 599",
                                value[i].data);
             return NGX_CONF_ERROR;
         }
-
+        // 有没有重写错误码
         err->overwrite = overwrite;
+        // 返回的url，等于配置的最后一个值
         err->uri = value[cf->args->nelts - 1];
     }
 
@@ -1784,7 +1798,7 @@ static char *ngx_set_keepalive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *ngx_set_error_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_core_loc_conf_t *lcf = conf;
-
+    // 创建一个log记录错误日志
     if (!(lcf->err_log = ngx_log_create_errlog(cf->cycle, cf->args))) {
         return NGX_CONF_ERROR;
     }

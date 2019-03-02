@@ -564,17 +564,17 @@ char *ngx_http_userid_expires(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     value = cf->args->elts;
-
+    // 值是max代表cookie永不过期
     if (ngx_strcmp(value[1].data, "max") == 0) {
         ucf->expires = NGX_HTTP_USERID_MAX_EXPIRES;
         return NGX_CONF_OK;
     }
-
+    // off代表会话cookie
     if (ngx_strcmp(value[1].data, "off") == 0) {
         ucf->expires = 0;
         return NGX_CONF_OK;
     }
-
+    // 设置一个固定的时间
     ucf->expires = ngx_parse_time(&value[1], 1);
     if (ucf->expires == NGX_ERROR) {
         return "invalid value";
