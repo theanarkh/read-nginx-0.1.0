@@ -912,7 +912,7 @@ static char *ngx_server_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     ngx_test_null(ctx,
                   ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t)),
                   NGX_CONF_ERROR);
-
+    // ngx_http_conf_ctx_t
     http_ctx = cf->ctx;
     // main_conf来自父层
     ctx->main_conf = http_ctx->main_conf;
@@ -1109,7 +1109,7 @@ static char *ngx_location_block(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     }
     // ngx_http_core_loc_conf_s 
     pclcf = pctx->loc_conf[ngx_http_core_module.ctx_index];
-
+    // 如果location是基于server上下文的，name是空，如果是基于location，即嵌套的location则name是非空
     if (pclcf->name.len == 0) {
         cscf = ctx->srv_conf[ngx_http_core_module.ctx_index];
         if (!(clcfp = ngx_push_array(&cscf->locations))) {
@@ -1285,7 +1285,7 @@ static void *ngx_http_core_create_srv_conf(ngx_conf_t *cf)
     return cscf;
 }
 
-
+// 
 static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
                                           void *parent, void *child)
 {
@@ -1306,11 +1306,12 @@ static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
         l->port = 80;
 #else
         /* STUB: getuid() should be cached */
+        // 等于0说明是root
         l->port = (getuid() == 0) ? 80 : 8000;
 #endif
         l->family = AF_INET;
     }
-    // 没有配置servername
+    // 没有配置servername，则取本机主机名
     if (conf->server_names.nelts == 0) {
         ngx_test_null(n, ngx_push_array(&conf->server_names), NGX_CONF_ERROR);
         ngx_test_null(n->name.data, ngx_palloc(cf->pool, NGX_MAXHOSTNAMELEN),
@@ -1323,6 +1324,7 @@ static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
         }
 
         n->name.len = ngx_strlen(n->name.data);
+        // 该servername对应的server配置
         n->core_srv_conf = conf;
 
 #if 0
@@ -1336,7 +1338,10 @@ static char *ngx_http_core_merge_srv_conf(ngx_conf_t *cf,
             cmcf->max_server_name_len = n->name.len;
         }
     }
-
+    /*
+        如果第一个参数没有值，则取第二个参数的，如果第二个参数也没有值，
+        则取第三个参数的，即子类没有值，则取父类的，父类也没有值，则取默认的
+    */
     ngx_conf_merge_size_value(conf->connection_pool_size,
                               prev->connection_pool_size, 256);
     ngx_conf_merge_msec_value(conf->post_accept_timeout,
@@ -1432,23 +1437,36 @@ static char *ngx_http_core_merge_loc_conf(ngx_conf_t *cf,
     if (ngx_conf_full_name(cf->cycle, &conf->root) == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
-
+    // 子层没有配置types
     if (conf->types == NULL) {
+        // 父层也没有配置
         if (prev->types) {
             conf->types = prev->types;
 
         } else {
+            // 取默认的
             ngx_test_null(conf->types,
                           ngx_palloc(cf->pool, NGX_HTTP_TYPES_HASH_PRIME
                                                         * sizeof(ngx_array_t)),
                           NGX_CONF_ERROR);
-
+            // 初始化分配的数组
             for (i = 0; i < NGX_HTTP_TYPES_HASH_PRIME; i++) {
                 ngx_init_array(conf->types[i], cf->pool,
                                5, sizeof(ngx_http_type_t), NGX_CONF_ERROR);
             }
-
+            // 遍历默认配置
             for (i = 0; default_types[i].exten.len; i++) {
+                /*
+                    #define ngx_http_types_hash_key(key, ext)                                   \
+                    {                                                                   \
+                        u_int n;                                                        \
+                        for (key = 0, n = 0; n < ext.len; n++) {                        \
+                            key += ext.data[n];                                         \
+                        }                                                               \
+                        key %= NGX_HTTP_TYPES_HASH_PRIME;                               \
+                    }
+                */
+                // 用宏算出数组索引，如果索引一样说明extern一样，则覆盖，这里假设了不会存在html和lmth这样type
                 ngx_http_types_hash_key(key, default_types[i].exten);
 
                 ngx_test_null(t, ngx_push_array(&conf->types[key]),
@@ -1599,7 +1617,11 @@ static char *ngx_set_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 static char *ngx_set_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
+{   
+    /*
+        ngx_http_conf_ctx_t.srv_conf[ngx_http_core_module.ctx_index]
+        ngx_http_conf_ctx_t为该server对应新分配的，而不是http层级的
+    */
     ngx_http_core_srv_conf_t *scf = conf;
 
     ngx_uint_t                  i;

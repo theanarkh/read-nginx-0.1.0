@@ -94,7 +94,7 @@ static char *ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf,
     if (conf->enable == 0) {
         return NGX_CONF_OK;
     }
-
+    // server上下文里没有配置证书和私钥则取http上下文的
     ngx_conf_merge_str_value(conf->certificate, prev->certificate,
                              NGX_DEFLAUT_CERTIFICATE);
 
@@ -109,7 +109,7 @@ static char *ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf,
         ngx_ssl_error(NGX_LOG_EMERG, cf->log, 0, "SSL_CTX_new() failed");
         return NGX_CONF_ERROR;
     }
-
+    // 加载用户证书
     if (SSL_CTX_use_certificate_file(conf->ssl_ctx,
                                      (char *) conf->certificate.data,
                                      SSL_FILETYPE_PEM) == 0) {
@@ -118,7 +118,7 @@ static char *ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf,
                       conf->certificate.data);
         return NGX_CONF_ERROR;
     }
-
+    // 加载用户私钥
     if (SSL_CTX_use_PrivateKey_file(conf->ssl_ctx,
                                     (char *) conf->certificate_key.data,
                                     SSL_FILETYPE_PEM) == 0) {

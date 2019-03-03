@@ -163,8 +163,9 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * init http{} main_conf's, merge the server{}s' srv_conf's
      * and its location{}s' loc_conf's
      */
-    
+    // 取出ngx_http_core_module在http上下文的main配置 
     cmcf = ctx->main_conf[ngx_http_core_module.ctx_index];
+    // server指令的管理结构
     cscfp = cmcf->servers.elts;
 
     for (m = 0; ngx_modules[m]; m++) {
@@ -176,7 +177,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         mi = ngx_modules[m]->ctx_index;
 
         /* init http{} main_conf's */
-
+        // ngx_conf_parse没有赋值的字段在这进行初始化
         if (module->init_main_conf) {
             rv = module->init_main_conf(cf, ctx->main_conf[mi]);
             if (rv != NGX_CONF_OK) {
@@ -184,14 +185,20 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                 return rv;
             }
         }
-
+        // http上下文下所有的server指令对应的结构体数组
         for (s = 0; s < cmcf->servers.nelts; s++) {
 
             /* merge the server{}s' srv_conf's */
 
             if (module->merge_srv_conf) {
+                // 合并http层和server层配置
                 rv = module->merge_srv_conf(cf,
+                                            // 子模块在http上下文的srv_conf配置，内容由子模块创建
                                             ctx->srv_conf[mi],
+                                            /*
+                                                cscfp[s]指向server上下文中的ngx_http_core_srv_conf_t结构体，
+                                                通过反向指针找到server指令创建的上下文，再找出某个模块的的srv_conf
+                                            */
                                             cscfp[s]->ctx->srv_conf[mi]);
                 if (rv != NGX_CONF_OK) {
                     *cf = pcf;
@@ -202,7 +209,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             if (module->merge_loc_conf) {
 
                 /* merge the server{}'s loc_conf */
-
+                // 合并http层和非嵌套的location层的配置
                 rv = module->merge_loc_conf(cf,
                                             ctx->loc_conf[mi],
                                             cscfp[s]->ctx->loc_conf[mi]);
@@ -212,7 +219,11 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                 }
 
                 /* merge the locations{}' loc_conf's */
-
+                /*
+                    合并server和非嵌套location的配置、非嵌套location和嵌套location的配置,
+                    &cscfp[s]->locations：server下的所有非嵌套location
+                    cscfp[s]->ctx->loc_conf，server层各模块关于location的配置 
+                */
                 rv = ngx_http_merge_locations(cf, &cscfp[s]->locations,
                                               cscfp[s]->ctx->loc_conf,
                                               module, mi);
@@ -239,6 +250,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     /* we needed "http"'s cf->ctx while merging configuration */
+    // 恢复上下文
     *cf = pcf;
 
     /* init lists of the handlers */
@@ -284,10 +296,11 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     /* "server" directives */
     cscfp = cmcf->servers.elts;
-    // 遍历每个server下的每个listen结构的每个端口
+    // 遍历每个server下的每个listen结构的每个端口，构造端口->地址->servername的多级结构
     for (s = 0; s < cmcf->servers.nelts; s++) {
 
         /* "listen" directives */
+        // 在解析listen指令的时候写入
         lscf = cscfp[s]->listen.elts;
         for (l = 0; l < cscfp[s]->listen.nelts; l++) {
 
@@ -299,12 +312,12 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             for (p = 0; p < in_ports.nelts; p++) {
 
                 if (lscf[l].port == in_port[p].port) {
-
+                    // 端口已经在监听
                     /* the port is already in the port list */
 
                     port_found = 1;
                     addr_found = 0;
-
+                    // 监听了这个端口的地址列表
                     in_addr = in_port[p].addrs.elts;
                     for (a = 0; a < in_port[p].addrs.nelts; a++) {
                         // 监听的端口相等，判断地址是否也相等
@@ -313,6 +326,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                             /* the address is already bound to this port */
 
                             /* "server_name" directives */
+                            // server对应的servername列表
                             s_name = cscfp[s]->server_names.elts;
                             for (n = 0; n < cscfp[s]->server_names.nelts; n++) {
 
@@ -335,7 +349,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                              * check duplicate "default" server that
                              * serves this address:port
                              */
-
+                            // 同一个server配置里只能有一个default_server
                             if (lscf[l].default_server) {
                                 if (in_addr[a].default_server) {
                                     ngx_log_error(NGX_LOG_ERR, cf->log, 0,
@@ -361,7 +375,11 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                              * to the end of the address list and add
                              * the new address at its place
                              */
-
+                            /*
+                                如果监听的地址是any，则把any的项放到地址列表的最后，
+                                原来的位置填充当前的listen配置的信息,遍历到any项说明
+                                已经是地址列表的最后一项
+                            */
                             ngx_test_null(inaddr,
                                           ngx_push_array(&in_port[p].addrs),
                                           NGX_CONF_ERROR);
@@ -381,13 +399,13 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                             ngx_init_array(inaddr->names, cf->pool, 10,
                                            sizeof(ngx_http_server_name_t),
                                            NGX_CONF_ERROR);
-
+                            // 置1，下面不需要再新增一个项
                             addr_found = 1;
-
+                            // 跳出循环，因为已经遍历到了any项了，说明是最后一项了
                             break;
                         }
                     }
-
+                    // 还没有该地址的项，新增一个
                     if (!addr_found) {
 
                         /*
@@ -414,11 +432,11 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                     }
                 }
             }
-
+            // 在已监听端口里没有找到当前端口
             if (!port_found) {
 
                 /* add the port to the in_port list */
-
+                // 记录该端口
                 ngx_test_null(in_port,
                               ngx_push_array(&in_ports),
                               NGX_CONF_ERROR);
@@ -433,7 +451,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                                                       in_port->port);
 
                 /* create list of the addresses that bound to this port ... */
-
+                // 监听了这个端口的地址列表
                 ngx_init_array(in_port->addrs, cf->pool, 10,
                                sizeof(ngx_http_in_addr_t),
                                NGX_CONF_ERROR);
@@ -445,6 +463,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
                 inaddr->addr = lscf[l].addr;
                 inaddr->default_server = lscf[l].default_server;
+                // 记录server配置，方便后续快速查找
                 inaddr->core_srv_conf = cscfp[s];
 
                 /*
@@ -462,19 +481,27 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* optimize the lists of the ports, the addresses and the server names */
 
     /* AF_INET only */
-
+    // 优化，如果不存在虚拟主机则不需要保存servername，因为servername是用来匹配虚拟主机的
+    // 监听的端口列表
     in_port = in_ports.elts;
     for (p = 0; p < in_ports.nelts; p++) {
 
         /* check whether the all server names point to the same server */
-
+        // 地址列表
         in_addr = in_port[p].addrs.elts;
         for (a = 0; a < in_port[p].addrs.nelts; a++) {
 
             virtual_names = 0;
-
+            // servername列表
             name = in_addr[a].names.elts;
             for (n = 0; n < in_addr[a].names.nelts; n++) {
+                /*
+                    比较当前的地址和该地址下所有的servername，如果指向的server配置
+                    是一样的，说明当前的地址收到连接或者请求的时候，直接给server里配置的服务
+                    就行，如果有一个servername指向的server配置和当前地址的不一样，说明当一个请求或
+                    连接到来时，nginx无法通过地址决定该请求转发给哪个服务，还需要servername信息，即
+                    虚拟主机名
+                */
                 if (in_addr[a].core_srv_conf != name[n].core_srv_conf) {
                     virtual_names = 1;
                     break;
@@ -485,7 +512,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
              * if the all server names point to the same server
              * then we do not need to check them at run-time
              */
-
+            // 没有配置虚拟主机则不需要保存servername信息
             if (!virtual_names) {
                 in_addr[a].names.nelts = 0;
             }
@@ -495,7 +522,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
          * if there's the binding to "*:port" then we need to bind()
          * to "*:port" only and ignore the other bindings
          */
-
+        // 地址列表的最后一项是不是any，如果绑定的地址中有any，则绑定该地址即可，其他的地址不需要绑定了
         if (in_addr[a - 1].addr == INADDR_ANY) {
             a--;
 
@@ -505,7 +532,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         in_addr = in_port[p].addrs.elts;
         while (a < in_port[p].addrs.nelts) {
-
+            // push到cycle->listening中，并填充某些字段
             ls = ngx_listening_inet_stream_socket(cf, in_addr[a].addr,
                                                   in_port[p].port);
             if (ls == NULL) {
@@ -523,7 +550,7 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             ls->addr_ntop = 1;
 
             ls->handler = ngx_http_init_connection;
-
+            // 地址对应的server配置
             cscf = in_addr[a].core_srv_conf;
             ls->pool_size = cscf->connection_pool_size;
             ls->post_accept_timeout = cscf->post_accept_timeout;
@@ -539,22 +566,26 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 #endif
 
             ls->ctx = ctx;
-
+            // 有多个地址并且没有监听any地址
             if (in_port[p].addrs.nelts > 1) {
 
                 in_addr = in_port[p].addrs.elts;
+                // 没有绑定any的配置
                 if (in_addr[in_port[p].addrs.nelts - 1].addr != INADDR_ANY) {
 
                     /*
                      * if this port has not the "*:port" binding then create
                      * the separate ngx_http_in_port_t for the all bindings
                      */
-
+                    /*
+                        分配一个新的端口和地址结构，形成一个端口对应一个地址的结构，
+                        但是servername是共享的，比如端口1*地址数+端口2*地址数个结构体
+                    */
                     ngx_test_null(inport,
                                   ngx_palloc(cf->pool,
                                              sizeof(ngx_http_in_port_t)),
                                   NGX_CONF_ERROR);
-
+                    // 复制
                     inport->port = in_port[p].port;
                     inport->port_text = in_port[p].port_text;
 
@@ -565,14 +596,14 @@ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                                    NGX_CONF_ERROR);
 
                     /* ... and set up it with the first address */
-
+                    // 地址等于当前循环的地址
                     inport->addrs.nelts = 1;
                     inport->addrs.elts = in_port[p].addrs.elts;
 
                     ls->servers = inport;
 
                     /* prepare for the next cycle */
-
+                    // 指向地址列表中下一个地址
                     in_port[p].addrs.elts = (char *) in_port[p].addrs.elts
                                                        + in_port[p].addrs.size;
                     in_port[p].addrs.nelts--;
@@ -625,14 +656,23 @@ static char *ngx_http_merge_locations(ngx_conf_t *cf,
     ngx_http_core_loc_conf_t  **clcfp;
 
     clcfp = /* (ngx_http_core_loc_conf_t **) */ locations->elts;
-
+    // 遍历父层的location
     for (i = 0; i < locations->nelts; i++) {
+        /* 
+            先合并server和非嵌套location层的配置
+            loc_conf[ctx_index]:server层的location配置,
+            clcfp[i]->loc_conf[ctx_index]:location层各模块的配置
+        */
         rv = module->merge_loc_conf(cf, loc_conf[ctx_index],
                                     clcfp[i]->loc_conf[ctx_index]);
         if (rv != NGX_CONF_OK) {
             return rv;
         }
-
+        /*
+          再合并嵌套location和非嵌套location的配置, 
+          &clcfp[i]->locations：各模块关于嵌套的lcaotion，
+          clcfp[i]->loc_conf：各模块和关于非嵌套location的配置
+        */
         rv = ngx_http_merge_locations(cf, &clcfp[i]->locations,
                                       clcfp[i]->loc_conf, module, ctx_index);
         if (rv != NGX_CONF_OK) {
