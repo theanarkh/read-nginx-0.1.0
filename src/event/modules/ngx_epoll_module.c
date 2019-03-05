@@ -206,9 +206,12 @@ static int ngx_epoll_add_event(ngx_event_t *ev, int event, u_int flags)
     c = ev->data;
     // 读事件或者写事件
     if (event == NGX_READ_EVENT) {
+        // 指向写事件结构
         e = c->write;
+        // 保存之前的事件类型，如果e是active的话，见下面分析
         prev = EPOLLOUT;
 #if (NGX_READ_EVENT != EPOLLIN)
+        // 本次是读事件
         event = EPOLLIN;
 #endif
 
@@ -219,9 +222,10 @@ static int ngx_epoll_add_event(ngx_event_t *ev, int event, u_int flags)
         event = EPOLLOUT;
 #endif
     }
-    // 事件是活跃的，即在epoll里，修改而不是插入节点
+    // 反事件是活跃的，即当前设置的是读，则判断写事件当前是不是已经在epoll里，是的话修改而不是插入节点
     if (e->active) {
         op = EPOLL_CTL_MOD;
+        // 累加事件类型，需要设置的事件是读写
         event |= prev;
 
     } else {
@@ -240,7 +244,7 @@ static int ngx_epoll_add_event(ngx_event_t *ev, int event, u_int flags)
                       "epoll_ctl(%d, %d) failed", op, c->fd);
         return NGX_ERROR;
     }
-    // 置位表示已经加入事件红黑树
+    // 置位表示已经加入epoll事件红黑树
     ev->active = 1;
 #if 0
     ev->oneshot = (flags & NGX_ONESHOT_EVENT) ? 1 : 0;
@@ -278,7 +282,7 @@ static int ngx_epoll_del_event(ngx_event_t *ev, int event, u_int flags)
         e = c->read;
         prev = EPOLLIN;
     }
-    // 如果active是1说明这个事件依然是活跃的，可能是暂时disable，如果连接断开，active会为0，这时候才需要删除红黑树节点
+    // 如果对于的反事件在红黑树中，只需要修改红黑树已存在的节点，否则删除 
     if (e->active) {
         op = EPOLL_CTL_MOD;
         ee.events = prev | flags;
@@ -328,7 +332,7 @@ static int ngx_epoll_add_connection(ngx_connection_t *c)
     return NGX_OK;
 }
 
-
+// 删除连接对应的读写事件
 static int ngx_epoll_del_connection(ngx_connection_t *c, u_int flags)
 {
     int                  op;
@@ -380,7 +384,9 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     ngx_connection_t  *c;
     ngx_epoch_msec_t   delta;
 
-    for ( ;; ) { 
+    for ( ;; ) {
+        
+        // 找出最快到期的节点的值   
         timer = ngx_event_find_timer();
 
 #if (NGX_THREADS)
@@ -428,16 +434,18 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
             ngx_accept_disabled--;
 
         } else {
+            // 抢锁，抢到后把监听的fd加到epoll中
             if (ngx_trylock_accept_mutex(cycle) == NGX_ERROR) {
                 return NGX_ERROR;
             }
-
+            // 为1说明抢到锁
             if (ngx_accept_mutex_held) {
                 accept_lock = 1;
 
             } else if (timer == NGX_TIMER_INFINITE
                        || timer > ngx_accept_mutex_delay)
-            {
+            {   
+                // 没抢到锁，过一会再抢
                 timer = ngx_accept_mutex_delay;
                 expire = 0;
             }
@@ -457,17 +465,20 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     // 获取系统时间
     ngx_gettimeofday(&tv);
     ngx_time_update(tv.tv_sec);
-
+    // 记录上一次事件处理的事件
     delta = ngx_elapsed_msec;
+    // 更新本次执行时的事件，下一次执行时用
     ngx_elapsed_msec = (ngx_epoch_msec_t) tv.tv_sec * 1000
                                           + tv.tv_usec / 1000 - ngx_start_msec;
 
     if (timer != NGX_TIMER_INFINITE) {
+        // 最近一次执行距离当前执行的时间间隔
         delta = ngx_elapsed_msec - delta;
 
         ngx_log_debug2(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                        "epoll timer: %d, delta: %d", timer, (int) delta);
     } else {
+        // timer为无限等待，epoll_wait返回了，但是没有就绪事件说明有问题
         if (events == 0) {
             ngx_log_error(NGX_LOG_ALERT, cycle->log, 0,
                           "epoll_wait() returned no events without timeout");
@@ -549,7 +560,7 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
             } else {
                 // 可写
                 wev->ready = 1;
-                // 拿不到ngx_accept_mutex_held
+                // 拿不到ngx_accept_mutex_held,则直接执行回调，否则要延时执行，因为处理时间过长，导致其他进程拿不到锁，无法接收连接
                 if (!ngx_accept_mutex_held) {
                     wev->event_handler(wev);
 
@@ -577,11 +588,12 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
             }
             // 可读
             rev->ready = 1;
-
+            // 没拿到锁不影响其他进程accept，可以直接执行回调
             if (!ngx_threaded && !ngx_accept_mutex_held) {
                 rev->event_handler(rev);
 
             } else if (!rev->accept) {
+                // 拿到锁，延时执行，避免影响其他进程拿锁
                 ngx_post_event(rev);
 
             } else if (ngx_accept_disabled <= 0) {

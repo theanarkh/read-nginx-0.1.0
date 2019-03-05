@@ -12,12 +12,16 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-
+// 添加一个节点到队列
 #define ngx_post_event(ev)                                                    \
             if (ev->prev == NULL) {                                           \
+                // 指向当前的第一个节点
                 ev->next = (ngx_event_t *) ngx_posted_events;                 \
+                // 指向头指针的地址 
                 ev->prev = (ngx_event_t **) &ngx_posted_events;               \
+                // 头指针指向新的第一个节点
                 ngx_posted_events = ev;                                       \
+                // 旧的第一个节点prev指针指向新节点的next字段的地址
                 if (ev->next) {                                               \
                     ev->next->prev = &ev->next;                               \
                 }                                                             \
@@ -27,7 +31,7 @@
                 ngx_log_debug1(NGX_LOG_DEBUG_CORE, ev->log, 0,                \
                                "update posted event " PTR_FMT, ev);           \
             }
-
+// 把节点从队列中删除
 #define ngx_delete_posted_event(ev)                                           \
         *(ev->prev) = ev->next;                                               \
         if (ev->next) {                                                       \

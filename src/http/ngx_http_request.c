@@ -97,7 +97,7 @@ static void ngx_http_dummy(ngx_event_t *wev)
 }
 #endif
 
-
+// accept新建的connection结构体
 void ngx_http_init_connection(ngx_connection_t *c)
 {
     ngx_event_t         *rev;

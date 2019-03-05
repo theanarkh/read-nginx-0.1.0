@@ -62,11 +62,15 @@ ngx_event_actions_t               ngx_event_actions;
 ngx_atomic_t                      connection_counter;
 ngx_atomic_t                     *ngx_connection_counter = &connection_counter;
 
-
+// 指向进程间共享内存的首地址
 ngx_atomic_t                     *ngx_accept_mutex_ptr;
+// 互斥变量
 ngx_atomic_t                     *ngx_accept_mutex;
+// 是否对互斥变量加锁成功
 ngx_uint_t                        ngx_accept_mutex_held;
+// 延时多久继续锁互斥变量加锁
 ngx_msec_t                        ngx_accept_mutex_delay;
+// 负载均衡用
 ngx_int_t                         ngx_accept_disabled;
 
 
@@ -265,11 +269,14 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
 
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
     ecf = ngx_event_get_conf(cycle->conf_ctx, ngx_event_core_module);
-
+    // 分配共享内存成功，进程数大于1，开启了互斥accept标记位
     if (ngx_accept_mutex_ptr && ccf->worker_processes > 1 && ecf->accept_mutex)
-    {
+    {   
+        // 执行进程间共享内存
         ngx_accept_mutex = ngx_accept_mutex_ptr;
+        // 置0表示没有对ngx_accept_mutex加锁成功
         ngx_accept_mutex_held = 0;
+        // 延时多久再次对ngx_accept_mutex加锁
         ngx_accept_mutex_delay = ecf->accept_mutex_delay;
     }
 
@@ -441,7 +448,7 @@ static ngx_int_t ngx_event_process_init(ngx_cycle_t *cycle)
 #else
         // 设置监听套接字的可读事件回调，即监听有连接到来
         rev->event_handler = &ngx_event_accept;
-
+        // 如果开始了accept_mutex，等事件到来时，抢到锁才执行add_event
         if (ngx_accept_mutex) {
             continue;
         }

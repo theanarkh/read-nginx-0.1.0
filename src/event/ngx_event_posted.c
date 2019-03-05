@@ -21,7 +21,7 @@ void ngx_event_process_posted(ngx_cycle_t *cycle)
     ngx_event_t  *ev;
 
     for ( ;; ) {
-
+        // 当前需要处理的节点
         ev = (ngx_event_t *) ngx_posted_events;
 
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
@@ -30,9 +30,9 @@ void ngx_event_process_posted(ngx_cycle_t *cycle)
         if (ev == NULL) {
             return;
         }
-
+        // 把当前节点从队列中删除
         ngx_delete_posted_event(ev);
-
+        // 执行节点的回调
         ev->event_handler(ev);
     }
 }

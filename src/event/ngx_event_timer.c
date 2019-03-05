@@ -26,7 +26,7 @@ ngx_int_t ngx_event_timer_init(ngx_log_t *log)
 #endif
         return NGX_OK;
     }
-
+    // 指向哨兵节点
     ngx_event_timer_rbtree = &ngx_event_timer_sentinel;
 
 #if (NGX_THREADS)
@@ -43,7 +43,7 @@ ngx_msec_t ngx_event_find_timer(void)
 {
     ngx_msec_t     timer;
     ngx_rbtree_t  *node;
-
+    // 红黑树中没有节点
     if (ngx_event_timer_rbtree == &ngx_event_timer_sentinel) {
         return NGX_TIMER_INFINITE;
     }
@@ -51,7 +51,7 @@ ngx_msec_t ngx_event_find_timer(void)
     if (ngx_mutex_lock(ngx_event_timer_mutex) == NGX_ERROR) {
         return NGX_TIMER_ERROR;
     }
-
+    //
     node = ngx_rbtree_min((ngx_rbtree_t *) ngx_event_timer_rbtree,
                           &ngx_event_timer_sentinel);
 
@@ -67,7 +67,6 @@ ngx_msec_t ngx_event_find_timer(void)
     return timer > 0 ? timer: 0 ;
 }
 
-// 找出比timer小的节点
 void ngx_event_expire_timers(ngx_msec_t timer)
 {   
     ngx_event_t   *ev;
