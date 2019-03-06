@@ -92,7 +92,7 @@ void ngx_event_expire_timers(ngx_msec_t timer)
 
         if (node->key <= (ngx_msec_t)
                          (ngx_old_elapsed_msec + timer) / NGX_TIMER_RESOLUTION)
-        {   // 指向event结构体首地址
+        {   // 指向event结构体首地址,rbtree_key是event结构体里的一个字段
             ev = (ngx_event_t *)
                            ((char *) node - offsetof(ngx_event_t, rbtree_key));
 
@@ -118,7 +118,7 @@ void ngx_event_expire_timers(ngx_msec_t timer)
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                            "event timer del: %d: %d",
                             ngx_event_ident(ev->data), ev->rbtree_key);
-
+            // 节点已经超时，从红黑树中删除，然后执行回调
             ngx_rbtree_delete((ngx_rbtree_t **) &ngx_event_timer_rbtree,
                               &ngx_event_timer_sentinel,
                               (ngx_rbtree_t *) &ev->rbtree_key);

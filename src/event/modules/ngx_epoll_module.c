@@ -394,14 +394,17 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
         if (timer == NGX_TIMER_ERROR) {
             return NGX_ERROR;
         }
-
+        /*
+            如果没有定时节点或者过期时间过长，则取一个默认的时间，防止在epoll_wait阻塞的时候，
+            又没有事件到来时，新加入的节点过期无法及时执行
+        */
         if (timer == NGX_TIMER_INFINITE || timer > 500) {
             timer = 500;
             break;
         }
 
 #endif
-        // timer大于0说明最小的那个都没有过期，所以全部没有过期，如果最小的过期，那有大于等于1个节点过期
+        // timers不等于0说明还没有超时节点，则不需要处理超时事件
         if (timer != 0) {
             break;
         }
@@ -427,9 +430,11 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     }
 
     ngx_old_elapsed_msec = ngx_elapsed_msec;
+    // 是否获取了accept锁
     accept_lock = 0;
-
+    // 开启了accept锁
     if (ngx_accept_mutex) {
+        // 过载，先不参与抢accept锁
         if (ngx_accept_disabled > 0) {
             ngx_accept_disabled--;
 
@@ -445,7 +450,11 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
             } else if (timer == NGX_TIMER_INFINITE
                        || timer > ngx_accept_mutex_delay)
             {   
-                // 没抢到锁，过一会再抢
+                /*
+                    没抢到锁，过一会再抢,因为要保证ngx_accept_mutex_delay后
+                    再次抢锁，所以要epoll_wait的超时时间取timer和ngx_accept_mutex_delay,
+                    NGX_TIMER_INFINITE中的小者。
+                */
                 timer = ngx_accept_mutex_delay;
                 expire = 0;
             }
@@ -465,7 +474,7 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     // 获取系统时间
     ngx_gettimeofday(&tv);
     ngx_time_update(tv.tv_sec);
-    // 记录上一次事件处理的事件
+    // 记录上一次事件处理的时间
     delta = ngx_elapsed_msec;
     // 更新本次执行时的事件，下一次执行时用
     ngx_elapsed_msec = (ngx_epoch_msec_t) tv.tv_sec * 1000
@@ -490,16 +499,18 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     if (err) {
         ngx_log_error((err == NGX_EINTR) ? NGX_LOG_INFO : NGX_LOG_ALERT,
                       cycle->log, err, "epoll_wait() failed");
+        // 解锁，让其他进程可以抢            
         ngx_accept_mutex_unlock();
         return NGX_ERROR;
     }
 
     if (events > 0) {
+        // 假设现在抢到了accept锁，现在需要抢post锁，然后把事件post到post队列里，如果抢post失败，则是否accept锁
         if (ngx_mutex_lock(ngx_posted_events_mutex) == NGX_ERROR) {
             ngx_accept_mutex_unlock();
             return NGX_ERROR;
         } 
-
+        // 抢到了post锁
         lock = 1;
 
     } else {
@@ -593,20 +604,20 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
                 rev->event_handler(rev);
 
             } else if (!rev->accept) {
-                // 拿到锁，延时执行，避免影响其他进程拿锁
+                // 不是监听事件,拿到锁，延时执行，避免影响其他进程拿锁
                 ngx_post_event(rev);
 
             } else if (ngx_accept_disabled <= 0) {
-
+                // 监听事件，并且还能accept连接则直接处理
                 ngx_mutex_unlock(ngx_posted_events_mutex);
 
                 rev->event_handler(rev);
-
+                // accept完之后可能会导致不能再accept了，则解锁
                 if (ngx_accept_disabled > 0) {
                     ngx_accept_mutex_unlock();
                     accept_lock = 0;
                 }
-
+                // 最后一个事件了
                 if (i + 1 == events) {
                     lock = 0;
                     break;
@@ -633,7 +644,7 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     if (expire && delta) {
         ngx_event_expire_timers((ngx_msec_t) delta);
     }
-
+    // 解锁accept后可以处理一般的事件了，并且占有锁太久
     if (ngx_posted_events) {
         if (ngx_threaded) {
             ngx_wakeup_worker_thread(cycle);

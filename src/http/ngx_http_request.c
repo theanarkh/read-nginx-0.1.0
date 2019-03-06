@@ -142,7 +142,7 @@ void ngx_http_init_connection(ngx_connection_t *c)
         ngx_http_init_request(rev);
         return;
     }
-
+    // 设置定时器，隔多久后没有收到数据就断开连接
     ngx_add_timer(rev, c->listening->post_accept_timeout);
 
     if (ngx_handle_read_event(rev, 0) == NGX_ERROR) {
@@ -187,7 +187,7 @@ static void ngx_http_init_request(ngx_event_t *rev)
 #endif
 
     c = rev->data;
-
+    // 建立连接却没有发送数据
     if (rev->timedout) {
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
 
