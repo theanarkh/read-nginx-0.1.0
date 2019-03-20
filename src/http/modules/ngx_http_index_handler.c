@@ -115,7 +115,7 @@ ngx_int_t ngx_http_index_handler(ngx_http_request_t *r)
     /* crc must be in ctx !! */
     uint32_t                    crc;
 #endif
-
+    // 如果url不是以/结尾的则不需要处理
     if (r->uri.data[r->uri.len - 1] != '/') {
         return NGX_DECLINED;
     }
@@ -177,7 +177,7 @@ ngx_int_t ngx_http_index_handler(ngx_http_request_t *r)
         ctx->redirect.data = ngx_cpymem(ctx->path.data, clcf->root.data,
                                         clcf->root.len);
 #endif
-
+        // 配置了alias，url的path不会拼接到文件路径的最后
         if (clcf->alias) {
             ctx->path.data = ngx_palloc(r->pool, clcf->root.len
                                               + r->uri.len + 1 - clcf->name.len
@@ -499,7 +499,7 @@ static char *ngx_http_index_set_index(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_str_t  *index, *value;
 
     value = cf->args->elts;
-
+    // 第一个值不能是绝对路径
     if (value[1].data[0] == '/' && ilcf->indices.nelts == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "first index \"%s\" in \"%s\" directive "
@@ -515,11 +515,11 @@ static char *ngx_http_index_set_index(ngx_conf_t *cf, ngx_command_t *cmd,
                                value[1].data, cmd->name.data);
             return NGX_CONF_ERROR;
         }
-
+        // push一个字符串到indices数组里
         ngx_test_null(index, ngx_push_array(&ilcf->indices), NGX_CONF_ERROR);
         index->len = value[i].len;
         index->data = value[i].data;
-
+        // 更新值index指令后面的路径最大字符数
         if (ilcf->max_index_len < index->len + 1) {
             ilcf->max_index_len = index->len + 1;
         }

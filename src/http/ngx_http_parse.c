@@ -37,11 +37,13 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
         sw_almost_done,
         sw_done
     } state;
-
+    // 当前解析状态，因为会多次进入该函数,初始化为0，ngx_memzero(r, sizeof(ngx_http_request_t))
     state = r->state;
+    // 开始位置
     p = b->pos;
-
+    // 没解析完并且还有数据
     while (p < b->last && state < sw_done) {
+        // 当前字符
         ch = *p++;
 
         /* gcc 2.95.2 and msvc 6.0 compile this switch as an jump table */
@@ -50,24 +52,27 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
         /* HTTP methods: GET, HEAD, POST */
         case sw_start:
+            // 因为上面p++了，所以这里减一即当前字符的位置
             r->request_start = p - 1;
-
+            // 忽略开头的回车换行
             if (ch == CR || ch == LF) {
                 break;
             }
-
+            // 不是A-Z范围的字符不合法，返回错误 
             if (ch < 'A' || ch > 'Z') {
                 return NGX_HTTP_PARSE_INVALID_METHOD;
             }
-
+            // 遇到第一个合法字符，进入解析method状态
             state = sw_method;
             break;
 
         case sw_method:
+            // 遇到空格，http method解析结束
             if (ch == ' ') {
+                // 记录method的字符串范围
                 r->method_end = p - 1;
                 m = r->request_start;
-
+                // method的字符串长度是3，则比较是不是等于GET
                 if (r->method_end - m == 3) {
 
                     if (m[0] == 'G' && m[1] == 'E' && m[2] == 'T') {
@@ -87,7 +92,7 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
                         r->method = NGX_HTTP_HEAD;
                     }
                 }
-
+                // 进入解析url前的空格状态
                 state = sw_spaces_before_uri;
                 break;
             }
@@ -112,14 +117,18 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
         /* space* before URI */
         case sw_spaces_before_uri:
             switch (ch) {
+            // 遇到斜杠，即url的第一个字符，说明是相对地址
             case '/':
                 r->uri_start = p - 1;
                 state = sw_after_slash_in_uri;
                 break;
+            // 忽略url前的空格
             case ' ':
                 break;
             default:
+                // 遇到的第一个字符不是斜杠说明是绝对地址，进入解析协议状态
                 if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')) {
+                    // 记录协议字符的起始位置
                     r->schema_start = p - 1;
                     state = sw_schema;
                     break;
@@ -127,9 +136,10 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
                 return NGX_HTTP_PARSE_INVALID_REQUEST;
             }
             break;
-
+        // 解析协议
         case sw_schema:
             switch (ch) {
+            // 遇到冒号说明协议解析完毕，进入解析协议后的斜杠状态
             case ':':
                 r->schema_end = p - 1;
                 state = sw_schema_slash;
@@ -144,6 +154,7 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
         case sw_schema_slash:
             switch (ch) {
+            // 遇到协议后的第一个斜杠，进入遇到遇到了两个斜杠的状态
             case '/':
                 state = sw_schema_slash_slash;
                 break;
@@ -154,6 +165,7 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
         case sw_schema_slash_slash:
             switch (ch) {
+            // 遇到了第二个斜杠，
             case '/':
                 r->host_start = p - 1;
                 state = sw_host;
@@ -165,16 +177,19 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
         case sw_host:
             switch (ch) {
+            // 遇到冒号说明host解析完毕，进入解析端口的状态
             case ':':
                 r->host_end = p - 1;
                 state = sw_port;
                 break;
             case '/':
+                // 遇到斜杠说明域名解析完毕， 没有端口
                 r->host_end = p - 1;
                 r->uri_start = p - 1;
                 state = sw_after_slash_in_uri;
                 break;
             default:
+                // 域名的合法字符
                 if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
                     || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-')
                 {
@@ -200,11 +215,14 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* check "/.", "//", and "%" in URI */
+        // 解析url路径
         case sw_after_slash_in_uri:
             switch (ch) {
+            // 解析路径的时候就遇到CR，说明是0.9版本的http协议
             case CR:
                 r->uri_end = p - 1;
                 r->http_minor = 9;
+                // 还需要一个LF
                 state = sw_almost_done;
                 break;
             case LF:
@@ -420,7 +438,7 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
         }
     }
-
+    // 更新位置
     b->pos = p;
 
     if (state == sw_done) {
@@ -430,7 +448,7 @@ ngx_int_t ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
         r->http_version = r->http_major * 1000 + r->http_minor;
         r->state = sw_start;
-
+        // 0.9版本只支持GET
         if (r->http_version == 9 && r->method != NGX_HTTP_GET) {
             return NGX_HTTP_PARSE_INVALID_09_METHOD;
         }
@@ -476,13 +494,17 @@ ngx_int_t ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
                 state = sw_header_almost_done;
                 break;
             case LF:
+                // 解析完一行header
                 r->header_end = p - 1;
                 state = sw_header_done;
                 break;
             default:
+                // 接入解析name状态
                 state = sw_name;
+                // 指向name的第一个字符
                 r->header_name_start = p - 1;
-
+                // name的合法字符
+                // 转小写字母
                 c = (u_char) (ch | 0x20);
                 if (c >= 'a' && c <= 'z') {
                     break;
@@ -507,7 +529,7 @@ ngx_int_t ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             if (c >= 'a' && c <= 'z') {
                 break;
             }
-
+            // 遇到冒号说明name解析结束
             if (ch == ':') {
                 r->header_name_end = p - 1;
                 state = sw_space_before_value;

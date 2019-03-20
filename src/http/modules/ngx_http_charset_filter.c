@@ -465,7 +465,7 @@ static char *ngx_http_charset_init_main_conf(ngx_conf_t *cf, void *conf)
 
     tables = mcf->tables.elts;
     charset = mcf->charsets.elts;
-
+    // 遍历charset数组
     for (i = 0; i < mcf->charsets.nelts; i++) {
         if (!charset[i].server) {
             continue;
@@ -489,7 +489,7 @@ static char *ngx_http_charset_init_main_conf(ngx_conf_t *cf, void *conf)
             }
         }
     }
-
+    //校验
     for (i = 0; i < mcf->charsets.nelts; i++) {
         if (!charset[i].server) {
             continue;

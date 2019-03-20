@@ -319,11 +319,11 @@ ngx_log_t *ngx_log_create_errlog(ngx_cycle_t *cycle, ngx_array_t *args)
     } else {
         name = NULL;
     }
-
+    // 分配一个log结构体
     if (!(log = ngx_pcalloc(cycle->pool, sizeof(ngx_log_t)))) {
         return NULL;
     }
-
+    // 记录log输出的文件
     if (!(log->file = ngx_conf_open_file(cycle, name))) {
         return NULL;
     }

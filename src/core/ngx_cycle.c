@@ -129,7 +129,7 @@ ngx_cycle_t *ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
-    // 执行核心模块的钩子函数，该版本只有ngx_core_module模块定义了这些钩子
+    // 执行核心模块的钩子函数，该版本只有ngx_core_module模块定义了这个钩子
     for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->type != NGX_CORE_MODULE) {
             continue;

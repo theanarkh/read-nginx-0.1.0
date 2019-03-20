@@ -149,7 +149,7 @@ ngx_int_t ngx_open_listening_sockets(ngx_cycle_t *cycle)
             if (ls[i].fd != -1) {
                 continue;
             }
-            // 该地址是继承的，说明已经打开？
+            // 该地址是继承的，说明已经打开
             if (ls[i].inherited) {
 
                 /* TODO: close on exit */

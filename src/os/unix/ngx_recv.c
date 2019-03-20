@@ -10,7 +10,7 @@
 
 
 #if (HAVE_KQUEUE)
-
+// 从连接对应的socket中读取size大小的字节放到buf
 ssize_t ngx_unix_recv(ngx_connection_t *c, u_char *buf, size_t size)
 {
     ssize_t       n;
@@ -80,26 +80,27 @@ ssize_t ngx_unix_recv(ngx_connection_t *c, u_char *buf, size_t size)
 
                 return n;
             }
-
+            // 可读的字节不够
             if ((size_t) n < size) {
                 rev->ready = 0;
             }
-
+            // 对端关闭了连接
             if (n == 0) {
                 rev->eof = 1;
             }
-
+            // 返回已经读到的字节数
             return n;
         }
-
+        // 读出错
         err = ngx_socket_errno;
-
+        // 数据还没有准备好
         if (err == NGX_EAGAIN || err == NGX_EINTR) {
             ngx_log_debug0(NGX_LOG_DEBUG_EVENT, c->log, err,
                            "recv() not ready");
             n = NGX_AGAIN;
 
         } else {
+            // 读出错
             n = ngx_connection_error(c, err, "recv() failed");
             break;
         }

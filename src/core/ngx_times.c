@@ -103,7 +103,7 @@ void ngx_time_init()
     // 获取系统时间
     ngx_gettimeofday(&tv);
     // 记录nginx启动时间
-    ngx_start_msec = (ngx_epoch_msec_t) tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    ngx_start_msecngx_start_msec = (ngx_epoch_msec_t) tv.tv_sec * 1000 + tv.tv_usec / 1000;
     ngx_old_elapsed_msec = 0;
     ngx_elapsed_msec = 0;
 // http://man7.org/linux/man-pages/man3/tzset.3.html
@@ -162,7 +162,7 @@ void ngx_time_update(time_t s)
 
 
     p = cached_http_time[slot];
-
+    // 把字符串写到p中
     ngx_snprintf((char *) p, sizeof("Mon, 28 Sep 1970 06:00:00 GMT"),
                  "%s, %02d %s %4d %02d:%02d:%02d GMT",
                  week[ngx_cached_gmtime.ngx_tm_wday],
@@ -182,7 +182,7 @@ void ngx_time_update(time_t s)
     ngx_gmtime(s + ngx_gmtoff * 60, &tm);
 
 #elif (HAVE_GMTOFF)
-
+    // localtime是 把从1970-1-1零点零分到当前时间系统所偏移的秒数时间转换为本地时间存到tm中
     ngx_localtime(&tm);
     ngx_gmtoff = tm.ngx_tm_gmtoff / 60;
 

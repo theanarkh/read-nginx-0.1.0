@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "ngx_http.h": "c"
+        "ngx_http.h": "c",
+        "ngx_event.h": "c",
+        "ngx_garbage_collector.h": "c"
     }
 }

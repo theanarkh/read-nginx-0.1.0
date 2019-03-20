@@ -415,12 +415,13 @@ static void ngx_http_run_phases(ngx_http_request_t *r)
             ngx_http_finalize_request(r, rc);
             return;
         }
-
+        // 该阶段注册的钩子
         h = cmcf->phases[r->phase].handlers.elts;
         for (r->phase_handler = cmcf->phases[r->phase].handlers.nelts - 1;
              r->phase_handler >= 0;
              r->phase_handler--)
         {
+            // 执行钩子
             rc = h[r->phase_handler](r);
 
             if (rc == NGX_DONE) {
@@ -436,7 +437,7 @@ static void ngx_http_run_phases(ngx_http_request_t *r)
             if (rc == NGX_DECLINED) {
                 continue;
             }
-
+            // 处理结束，并且需要直接结束本次请求
             if (rc >= NGX_HTTP_SPECIAL_RESPONSE || rc == NGX_ERROR) {
                 ngx_http_finalize_request(r, rc);
                 return;

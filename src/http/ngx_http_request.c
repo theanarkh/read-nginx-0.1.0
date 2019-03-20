@@ -367,11 +367,11 @@ static void ngx_http_init_request(ngx_event_t *rev)
             return;
         }
     }
-
+    // 申请client_header_buffer_size大小的内容保存头部
     if (r->header_in == NULL) {
         r->header_in = c->buffer;
     }
-
+    // 给该次请求分配request_pool_size大小的内容
     if (!(r->pool = ngx_create_pool(cscf->request_pool_size, c->log))) {
         ngx_http_close_connection(c);
         return;
@@ -509,15 +509,16 @@ static void ngx_http_process_request_line(ngx_event_t *rev)
     for ( ;; ) {
 
         if (rc == NGX_AGAIN) {
+            // 读请求头数据 
             n = ngx_http_read_request_header(r);
 
             if (n == NGX_AGAIN || n == NGX_ERROR) {
                 return;
             }
         }
-
+        // 解析读取到的数据
         rc = ngx_http_parse_request_line(r, r->header_in);
-
+        // 请求行解析完毕
         if (rc == NGX_OK) {
 
             /* the request line has been parsed successfully */
@@ -630,12 +631,13 @@ static void ngx_http_process_request_line(ngx_event_t *rev)
                            r->exten.data ? r->exten.data : (u_char *) "");
 
             if (r->http_version < NGX_HTTP_VERSION_10) {
+                // http0.9没有http头
                 rev->event_handler = ngx_http_block_read;
                 ngx_http_handler(r);
                 return;
             }
 
-
+            // 请求行解析完毕，初始化存储http头部的结构，准备解析头
             if (ngx_list_init(&r->headers_in.headers, r->pool, 20,
                                          sizeof(ngx_table_elt_t)) == NGX_ERROR)
             {
@@ -644,7 +646,7 @@ static void ngx_http_process_request_line(ngx_event_t *rev)
                 return;
             }
 
-
+            // 分配存储cookie结构
             if (ngx_array_init(&r->headers_in.cookies, r->pool, 5,
                                        sizeof(ngx_table_elt_t *)) == NGX_ERROR)
             {
@@ -657,16 +659,16 @@ static void ngx_http_process_request_line(ngx_event_t *rev)
             ctx = c->log->data;
             ctx->action = "reading client request headers";
             ctx->url = r->unparsed_uri.data;
-
+            // 开始处理头，因为buf里可能还有数据，所以设置完回调后先直接一遍回调
             rev->event_handler = ngx_http_process_request_headers;
             ngx_http_process_request_headers(rev);
 
             return;
 
         } else if (rc != NGX_AGAIN) {
-
+            // 说明解析出错了，见parse函数代码
             /* there was error while a request line parsing */
-
+            // 忽略错误的解析，进行容错处理
             for (p = r->request_start; p < r->header_in->last; p++) {
                 if (*p == CR || *p == LF) {
                     break;
@@ -688,9 +690,10 @@ static void ngx_http_process_request_line(ngx_event_t *rev)
         }
 
         /* NGX_AGAIN: a request line parsing is still incomplete */
-
+        // 返回NGX_AGAIN说明还没有解析完请求行
+        // buf空间已经满
         if (r->header_in->pos == r->header_in->end) {
-
+            // 分配一个大的buf
             rv = ngx_http_alloc_large_header_buffer(r, 1);
 
             if (rv == NGX_ERROR) {
@@ -733,7 +736,7 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
     for ( ;; ) {
 
         if (rc == NGX_AGAIN) {
-
+            // buf已满
             if (r->header_in->pos == r->header_in->end) {
 
                 rv = ngx_http_alloc_large_header_buffer(r, 0);
@@ -750,22 +753,22 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
                     return;
                 }
             }
-
+            // 读http头的数据
             n = ngx_http_read_request_header(r);
 
             if (n == NGX_AGAIN || n == NGX_ERROR) {
                 return;
             }
         }
-
+        // 解析一行http头
         rc = ngx_http_parse_header_line(r, r->header_in);
-
+        // 解析完一行并且解析成功
         if (rc == NGX_OK) {
 
             /* a header line has been parsed successfully */
-
+            // http头的个数累加
             r->headers_n++;
-
+            // 存储解析到的http头
             if (!(h = ngx_list_push(&r->headers_in.headers))) {
                 ngx_http_close_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
                 ngx_http_close_connection(c);
@@ -779,7 +782,7 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
             h->value.len = r->header_end - r->header_start;
             h->value.data = r->header_start;
             h->value.data[h->value.len] = '\0';
-
+            // 如果解析到的是cookie，要继续处理
             if (h->key.len == sizeof("Cookie") - 1
                 && ngx_strcasecmp(h->key.data, "Cookie") == 0)
             {
@@ -788,19 +791,21 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
                     ngx_http_close_connection(c);
                     return;
                 }
-
+                // 指向刚才解析的头对应的结构，cookie是个数组，可以指向多个cookie的键对值
                 *cookie = h;
 
             } else {
-
+                // 遍历http合法的头部，进行处理
                 for (i = 0; ngx_http_headers_in[i].name.len != 0; i++) {
+                    // 长度相等并且内容相等
                     if (ngx_http_headers_in[i].name.len != h->key.len) {
                         continue;
                     }
-
+                    
                     if (ngx_strcasecmp(ngx_http_headers_in[i].name.data,
                                        h->key.data) == 0)
-                    {
+                    {   
+                        // 把解析到的数据对应结构体挂载到headers_in结构体
                         *((ngx_table_elt_t **) ((char *) &r->headers_in
                                          + ngx_http_headers_in[i].offset)) = h;
                         break;
@@ -817,7 +822,7 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
         } else if (rc == NGX_HTTP_PARSE_HEADER_DONE) {
 
             /* a whole header has been parsed successfully */
-
+            // 全部http都已经解析完
             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                            "http header done");
 
@@ -840,7 +845,7 @@ static void ngx_http_process_request_headers(ngx_event_t *rev)
             (*ngx_stat_writing)++;
             r->stat_writing = 1;
 #endif
-
+            // 准备处理httpbody，因为buf里可能还有数据所以这里先执行一遍回调
             rev->event_handler = ngx_http_block_read;
             ngx_http_handler(r);
             return;
@@ -886,9 +891,9 @@ static ssize_t ngx_http_read_request_header(ngx_http_request_t *r)
     ngx_http_core_srv_conf_t  *cscf;
 
     rev = r->connection->read;
-
+    // buf里还有多少数据可读
     n = r->header_in->last - r->header_in->pos;
-
+    // 有数据直接返回
     if (n > 0) {
         return n;
     }
@@ -896,14 +901,17 @@ static ssize_t ngx_http_read_request_header(ngx_http_request_t *r)
     if (!rev->ready) {
         return NGX_AGAIN;
     }
-
+    // 从socket中读数据
     n = r->connection->recv(r->connection, r->header_in->last,
                             r->header_in->end - r->header_in->last);
 
     if (n == NGX_AGAIN) {
+        // 还没有设置超时
         if (!r->header_timeout_set) {
             cscf = ngx_http_get_module_srv_conf(r, ngx_http_core_module);
+            // 设置client_header_timeout后超时
             ngx_add_timer(rev, cscf->client_header_timeout);
+            // 打已设置标记
             r->header_timeout_set = 1;
         }
 
@@ -926,7 +934,7 @@ static ssize_t ngx_http_read_request_header(ngx_http_request_t *r)
         ngx_http_close_connection(r->connection);
         return NGX_ERROR;
     }
-
+    // 读取了n个字节，更新位置
     r->header_in->last += n;
 
     return n;
@@ -943,7 +951,7 @@ static ngx_int_t ngx_http_alloc_large_header_buffer(ngx_http_request_t *r,
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http alloc large header buffer");
-
+    // 当前状态是解析请求行，状态还是0说明都是不合法的字符，清除，重新使用buf空间
     if (request_line && r->state == 0) {
 
         /* the client fills up the buffer with "\r\n" */
@@ -1085,6 +1093,7 @@ static ngx_int_t ngx_http_process_request_header(ngx_http_request_t *r)
                 break;
             }
         }
+        // 解析出host字段，即:之前的内容
         r->headers_in.host_name_len = len;
 
         /* find the name based server configuration */
@@ -1113,7 +1122,7 @@ static ngx_int_t ngx_http_process_request_header(ngx_http_request_t *r)
                 break;
             }
         }
-
+        // 没有找到对应的虚拟主机但是没有开启严格模式则没关系
         if (i == r->virtual_names->nelts) {
             cscf = ngx_http_get_module_srv_conf(r, ngx_http_core_module);
 
@@ -1123,6 +1132,7 @@ static ngx_int_t ngx_http_process_request_header(ngx_http_request_t *r)
         }
 
     } else {
+        // 大于1.0版本需要传host头
         if (r->http_version > NGX_HTTP_VERSION_10) {
             return NGX_HTTP_PARSE_NO_HOST_HEADER;
         }
@@ -1138,7 +1148,7 @@ static ngx_int_t ngx_http_process_request_header(ngx_http_request_t *r)
             return NGX_HTTP_PARSE_INVALID_CL_HEADER;
         }
     }
-
+    
     if (r->method == NGX_HTTP_POST && r->headers_in.content_length_n <= 0) {
         return NGX_HTTP_PARSE_POST_WO_CL_HEADER;
     }
