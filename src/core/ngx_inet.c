@@ -173,7 +173,7 @@ size_t ngx_inet_ntop(int family, void *addr, u_char *text, size_t len)
 
 
 /* AF_INET only */
-
+// 解析cidr中的网络地址和网络掩码，text = 12.34.56.78/21
 ngx_int_t ngx_ptocidr(ngx_str_t *text, void *cidr)
 {
     ngx_int_t         m;
@@ -181,7 +181,7 @@ ngx_int_t ngx_ptocidr(ngx_str_t *text, void *cidr)
     ngx_inet_cidr_t  *in_cidr;
 
     in_cidr = cidr;
-
+    // 找出ip地址的值
     for (i = 0; i < text->len; i++) {
         if (text->data[i] == '/') {
             break;
@@ -191,14 +191,16 @@ ngx_int_t ngx_ptocidr(ngx_str_t *text, void *cidr)
     if (i == text->len) {
         return NGX_ERROR;
     }
-
+    // 打字符串结束标记
     text->data[i] = '\0';
+    // 转成格式
     in_cidr->addr = inet_addr((char *) text->data);
+    // 转完后恢复值
     text->data[i] = '/';
     if (in_cidr->addr == INADDR_NONE) {
         return NGX_ERROR;
     }
-
+    // 把网络掩码转成数字
     m = ngx_atoi(&text->data[i + 1], text->len - (i + 1));
     if (m == NGX_ERROR) {
         return NGX_ERROR;
@@ -211,7 +213,12 @@ ngx_int_t ngx_ptocidr(ngx_str_t *text, void *cidr)
         in_cidr->mask = 0;
         return NGX_OK;
     }
-
+    /*
+        计算网络掩码，比如m是24位，即掩码的位数是24，32 - 24，即一左移8位
+        1 << 8 = (23个0)100000000, 
+        0 - (23个0)100000000 = -(23个0)100000000，负数在内存里是其对应的正数取反加一，
+        即(23个0)100000000取反是(23个1)011111111，加一是(23个1)100000000.即24个1是掩码
+    */
     in_cidr->mask = htonl((ngx_uint_t) (0 - (1 << (32 - m))));
 
     return NGX_OK;

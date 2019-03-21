@@ -31,7 +31,7 @@ static char *ngx_http_access_merge_loc_conf(ngx_conf_t *cf,
                                             void *parent, void *child);
 static ngx_int_t ngx_http_access_init(ngx_cycle_t *cycle);
 
-
+// 配置感兴趣的命令，nginx解析到这个命令就会执行对应的处理函数
 static ngx_command_t  ngx_http_access_commands[] = {
 
     { ngx_string("allow"),
@@ -52,7 +52,7 @@ static ngx_command_t  ngx_http_access_commands[] = {
 };
 
 
-
+// nginx初始化时执行的钩子
 ngx_http_module_t  ngx_http_access_module_ctx = {
     NULL,                                  /* pre conf */
 
@@ -99,7 +99,12 @@ static ngx_int_t ngx_http_access_handler(ngx_http_request_t *r)
 
 ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%08X %08X %08X",
                addr_in->sin_addr.s_addr, rule[i].mask, rule[i].addr);
-        // 命中rule中的配置，如果配置了all，if变成0==0,接下来就看配置的allow all还是deny all
+        /*
+            分为以下几种格式
+            1 all => ip：0 mask：0
+            2 合法ip值，则掩码是32位的1 => ip:ip mask:32个1，等于这个ip的会命中规则
+            3 cidr，解析出网络地址和网络掩码。 ip:配置的ip mask:配置的mask，在这个网络的都会命中规则
+        */
         if ((addr_in->sin_addr.s_addr & rule[i].mask) == rule[i].addr) {
             // 命中并且是deny的时候，返回403
             if (rule[i].deny) {
@@ -139,6 +144,12 @@ static char *ngx_http_access_rule(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     value = cf->args->elts;
+    /*
+        分为以下几种格式
+        1 all => ip：0 mask：0
+        2 合法ip值，则掩码是32位的1 => ip:ip mask:32个1
+        3 cidr，解析出网络地址和网络掩码。 ip:配置的ip mask:配置的mask
+    */
     // 第一个字符是d说明是deny，否则是allow
     rule->deny = (value[0].data[0] == 'd') ? 1 : 0;
     // all
@@ -150,13 +161,13 @@ static char *ngx_http_access_rule(ngx_conf_t *cf, ngx_command_t *cmd,
     }
     // 配置了具体的值，转成二进制形式的ip
     rule->addr = inet_addr((char *) value[1].data);
-    // ip有效
+    // 32位的合法ip值
     if (rule->addr != INADDR_NONE) {
         rule->mask = 0xffffffff;
 
         return NGX_CONF_OK;
     }
-    // 无效则判断值的格式为cidr
+    // 不是32位的合法ip值，则可能是cidr，或者就是无效的值
     if (ngx_ptocidr(&value[1], &in_cidr) == NGX_ERROR) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid paramter \"%s\"",
                            value[1].data);

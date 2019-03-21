@@ -45,12 +45,14 @@ static ngx_int_t ngx_http_chunked_header_filter(ngx_http_request_t *r)
     if (r->headers_out.status == NGX_HTTP_NOT_MODIFIED) {
         return ngx_http_next_header_filter(r);
     }
-
+    // 无法在返回时就知道数据具体长度的时候才需要使用chunk模式
     if (r->headers_out.content_length_n == -1) {
+        // 小于1.1的http协议不支持长连接
         if (r->http_version < NGX_HTTP_VERSION_11) {
             r->keepalive = 0;
 
         } else {
+            // 支持长连接，开启chunk传输模式
             r->chunked = 1;
         }
     }
@@ -76,7 +78,7 @@ static ngx_int_t ngx_http_chunked_body_filter(ngx_http_request_t *r,
 
     size = 0;
     cl = in;
-
+    // 构造一条新chain，把传进来的chain中buf挂到新的chain上
     for ( ;; ) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "http chunk: %d", ngx_buf_size(cl->buf));
