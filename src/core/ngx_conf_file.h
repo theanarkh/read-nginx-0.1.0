@@ -97,7 +97,9 @@ struct ngx_open_file_s {
 
 
 struct ngx_module_s {
+    // 每种核心模块下，子模块的索引
     ngx_uint_t       ctx_index;
+    // 核心模块的索引
     ngx_uint_t       index;
     void            *ctx;
     ngx_command_t   *commands;
@@ -109,7 +111,7 @@ struct ngx_module_s {
 #endif
 };
 
-
+// 核心模块的上下文结构体，用于创建保存核心模块配置的结构体和初始化里面的字段
 typedef struct {
     ngx_str_t       name;
     void         *(*create_conf)(ngx_cycle_t *cycle);

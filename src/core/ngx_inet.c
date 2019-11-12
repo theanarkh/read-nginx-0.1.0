@@ -205,7 +205,7 @@ ngx_int_t ngx_ptocidr(ngx_str_t *text, void *cidr)
     if (m == NGX_ERROR) {
         return NGX_ERROR;
     }
-
+    // 特殊情况
     if (m == 0) {
 
         /* the x86 compilers use the shl instruction that shifts by modulo 32 */

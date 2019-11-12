@@ -49,7 +49,7 @@ ngx_pid_t ngx_spawn_process(ngx_cycle_t *cycle,
     if (respawn != NGX_PROCESS_DETACHED) {
 
         /* Solaris 9 still has no AF_LOCAL */
-        // 创建unix于套接字用于进程间通信
+        // 创建unix域套接字用于进程间通信
         if (socketpair(AF_UNIX, SOCK_STREAM, 0, ngx_processes[s].channel) == -1)
         {
             ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,

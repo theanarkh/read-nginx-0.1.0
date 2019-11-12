@@ -414,7 +414,7 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
         // 处理超时事件
         ngx_event_expire_timers((ngx_msec_t)
                                     (ngx_elapsed_msec - ngx_old_elapsed_msec));
-
+        // ngx_posted_events队列非空
         if (ngx_posted_events && ngx_threaded) {
             ngx_wakeup_worker_thread(cycle);
         }
@@ -505,7 +505,7 @@ int ngx_epoll_process_events(ngx_cycle_t *cycle)
     }
 
     if (events > 0) {
-        // 假设现在抢到了accept锁，现在需要抢post锁，然后把事件post到post队列里，如果抢post失败，则是否accept锁
+        // 假设现在抢到了accept锁，现在需要抢post锁，然后把事件post到post队列里，如果抢post失败，则释放accept锁
         if (ngx_mutex_lock(ngx_posted_events_mutex) == NGX_ERROR) {
             ngx_accept_mutex_unlock();
             return NGX_ERROR;

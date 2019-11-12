@@ -42,7 +42,7 @@ typedef struct {
 
 
 typedef struct {
-    ngx_peers_t       *peers;// 执行一个ngx_peers_t结构体
+    ngx_peers_t       *peers;// 指向一个ngx_peers_t结构体
     ngx_int_t          cur_peer;// 当前使用的对端
     ngx_int_t          tries;// 等于对端的个数，连接一个对端失败则减一
 
